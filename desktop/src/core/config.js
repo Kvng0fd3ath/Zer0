@@ -117,6 +117,9 @@ function voiceEngines({ llmKey, openaiKey, fishKey, fishVoiceId }) {
 }
 
 class ConfigStore {
+  #secretCache; // name -> plaintext, filled by loadSecrets() or setSecret()
+  #secretsLoaded;
+
   /**
    * @param {object} opts
    * @param {string} opts.dir Directory for settings.json and secrets.json (Electron userData in the app).
@@ -126,6 +129,8 @@ class ConfigStore {
   constructor({ dir, codec = identityCodec, env = process.env }) {
     this.dir = dir;
     this.codec = codec;
+    this.#secretCache = new Map();
+    this.#secretsLoaded = false;
     this.env = env;
     this.settingsPath = path.join(dir, 'settings.json');
     this.secretsPath = path.join(dir, 'secrets.json');
@@ -170,9 +175,51 @@ class ConfigStore {
     }
   }
 
+  /**
+   * Decrypt every saved secret once, asynchronously, and keep the plaintext in memory.
+   * The app calls this at startup, before anything reads a secret. Once loaded,
+   * getSecret() never touches the codec again.
+   */
+  async loadSecrets() {
+    const all = this.#readSecrets();
+    for (const name of SECRET_NAMES) {
+      const stored = all[name];
+      if (typeof stored !== 'string' || !stored) continue;
+      try {
+        const plain = this.codec.decryptAsync ? await this.codec.decryptAsync(stored) : this.codec.decrypt(stored);
+        this.#secretCache.set(name, plain);
+      } catch {
+        // Unreadable secret: getSecret() falls back to the environment.
+      }
+    }
+    this.#secretsLoaded = true;
+  }
+
+  /** Like setSecret(), but uses the codec's async encryption when it has one. */
+  async setSecretAsync(name, value) {
+    assertSecretName(name);
+    const plain = value ? String(value).trim() : '';
+    const all = this.#readSecrets();
+    if (!plain) {
+      delete all[name];
+    } else {
+      all[name] = this.codec.encryptAsync ? await this.codec.encryptAsync(plain) : this.codec.encrypt(plain);
+    }
+    this.#writeJson(this.secretsPath, all);
+    this.#cacheSecret(name, plain);
+  }
+
+  #cacheSecret(name, plain) {
+    if (plain) this.#secretCache.set(name, plain);
+    else this.#secretCache.delete(name);
+  }
+
   /** Returns the decrypted secret, falling back to an environment variable. */
   getSecret(name) {
     assertSecretName(name);
+    if (this.#secretsLoaded) {
+      return this.#secretCache.get(name) || this.#envSecret(name);
+    }
     const stored = this.#readSecrets()[name];
     if (typeof stored === 'string' && stored) {
       try {
@@ -181,6 +228,10 @@ class ConfigStore {
         // Corrupt or unreadable secret: fall through to the environment.
       }
     }
+    return this.#envSecret(name);
+  }
+
+  #envSecret(name) {
     const envName = SECRET_ENV_FALLBACK[name];
     return (envName && this.env[envName]) || '';
   }
@@ -195,6 +246,7 @@ class ConfigStore {
       all[name] = this.codec.encrypt(String(value).trim());
     }
     this.#writeJson(this.secretsPath, all);
+    this.#cacheSecret(name, value ? String(value).trim() : '');
   }
 
   /** What the renderer may see: settings plus booleans telling whether each secret is set. */

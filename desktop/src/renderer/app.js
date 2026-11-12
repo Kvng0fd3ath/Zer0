@@ -195,15 +195,17 @@
     window.speechSynthesis.speak(utter);
   }
 
-  async function speak(text) {
+  // `text` is the screen version. `spoken` keeps Fish emotion tags and is only used for Fish.
+  async function speak(text, spoken) {
     if (!ui.state?.settings?.voice?.enabled) return;
     stopSpeaking();
     if (!ui.state.voiceEngines || ui.state.voiceEngines.tts === 'windows') {
       speakWithSystemVoice(text);
       return;
     }
+    const payload = ui.state.voiceEngines.tts === 'fish' && spoken ? spoken : text;
     try {
-      const bytes = await api.invoke('voice:speak', text);
+      const bytes = await api.invoke('voice:speak', payload);
       if (!bytes) return;
       const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
       const audio = new Audio(url);
@@ -318,12 +320,12 @@
     setOrb('thinking');
     setStatus('Thinking...');
     try {
-      const { reply } = await api.invoke('chat:send', message);
+      const { reply, spoken } = await api.invoke('chat:send', message);
       if (reply) addMessage('assistant', reply);
       setStatus('Ready.');
       setOrb('idle');
       await refreshActions();
-      if (reply) speak(reply);
+      if (reply) speak(reply, spoken);
     } catch (err) {
       addMessage('system', errorText(err), 'bad');
       setStatus(errorText(err), { offline: true });

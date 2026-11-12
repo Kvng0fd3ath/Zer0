@@ -1,11 +1,13 @@
 'use strict';
 
 const { chatCompletion } = require('./llm');
+const { stripEmotionTags, emotionInstruction } = require('./emotion');
 
 const MAX_TOOL_ROUNDS = 6;
 const HISTORY_LIMIT = 30;
 
-function systemPrompt({ assistantName, userName }, now) {
+function systemPrompt(runtime, now) {
+  const { assistantName, userName } = runtime;
   const who = userName ? `The user's name is ${userName}.` : '';
   return [
     `You are ${assistantName}, a calm, capable, slightly witty AI companion that lives on the user's desktop.`,
@@ -16,6 +18,7 @@ function systemPrompt({ assistantName, userName }, now) {
     'To text or call someone, use the send_text or place_call tool. The user will see a confirmation card and must press Confirm before anything is sent, so say that you have queued it and are waiting for their confirmation.',
     'Never claim a text or call was sent unless you receive a confirmed result.',
     'Never invent phone numbers. If a contact is unknown, ask the user for the number.',
+    runtime?.voice?.tts?.engine === 'fish' ? emotionInstruction() : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -98,7 +101,8 @@ class Companion {
   }
 
   /**
-   * Handle one user message. Returns `{ reply, actions }` where `actions` are newly queued
+   * Handle one user message. Returns `{ reply, spoken, actions }`. `reply` is the text for the
+   * screen. `spoken` is the same text with any Fish emotion tags kept. `actions` are newly queued
    * actions that need the user's confirmation.
    */
   async respond(userText) {
@@ -131,12 +135,13 @@ class Companion {
         tools: specs,
       });
 
-      const assistant = { role: 'assistant', content: message.content ?? '' };
+      const assistant = { role: 'assistant', content: stripEmotionTags(message.content ?? '') };
       if (message.tool_calls?.length) assistant.tool_calls = message.tool_calls;
       this.history.push(assistant);
 
       if (!message.tool_calls?.length) {
-        return { reply: String(message.content ?? '').trim(), actions: newActions };
+        const raw = String(message.content ?? '').trim();
+        return { reply: stripEmotionTags(raw), spoken: raw, actions: newActions };
       }
 
       for (const call of message.tool_calls) {
@@ -147,7 +152,7 @@ class Companion {
 
     const reply = 'I got tangled up trying to do that. Could you rephrase the request?';
     this.history.push({ role: 'assistant', content: reply });
-    return { reply, actions: newActions };
+    return { reply, spoken: reply, actions: newActions };
   }
 
   /** Confirm a queued action, execute it, and tell the model the outcome. */
