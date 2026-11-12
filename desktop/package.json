@@ -1,7 +1,7 @@
 {
   "name": "zer0-desktop",
   "version": "0.1.0",
-  "description": "Zer0 — a Jarvis-style AI desktop companion that can chat, speak, text and call.",
+  "description": "Zer0 \u2014 a Jarvis-style AI desktop companion that can chat, speak, text and call.",
   "author": "Kvng0fd3ath",
   "license": "UNLICENSED",
   "private": true,
@@ -10,7 +10,8 @@
     "start": "electron .",
     "test": "node --test \"test/*.test.js\"",
     "build": "electron-builder --publish never",
-    "release": "electron-builder --publish always"
+    "release": "electron-builder --publish always",
+    "build:win": "electron-builder --win --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.12"
@@ -42,13 +43,23 @@
     ],
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Zer0-Setup-${version}-x64.${ext}"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Zer0",
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "target": [

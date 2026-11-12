@@ -153,3 +153,10 @@ textarea { resize: vertical; }
 .hint { color: var(--muted); font-size: 12px; margin: 2px 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row.end { justify-content: flex-end; }
+
+.wake-badge {
+  margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ok); border: 1px solid rgba(89, 240, 166, 0.45);
+  background: rgba(89, 240, 166, 0.08);
+}
+.wake-badge[hidden] { display: none; }

@@ -15,13 +15,14 @@ function baseOf(url) {
 }
 
 /** Speech-to-text. `audio` is a Buffer/Uint8Array of recorded audio. Returns the transcript string. */
-async function transcribeAudio({ baseUrl, apiKey, model, audio, mimeType = 'audio/webm', fetchImpl = globalThis.fetch }) {
+async function transcribeAudio({ baseUrl, apiKey, model, audio, mimeType = 'audio/webm', prompt = '', fetchImpl = globalThis.fetch }) {
   if (!apiKey) throw new VoiceError('Voice input needs an OpenAI API key. Add one in Settings.');
   if (!audio || !audio.length) throw new VoiceError('No audio was recorded.');
 
   const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : mimeType.includes('wav') ? 'wav' : 'webm';
   const form = new FormData();
   form.append('model', model);
+  if (prompt) form.append('prompt', String(prompt).slice(0, 200));
   form.append('file', new Blob([audio], { type: mimeType }), `speech.${ext}`);
 
   const res = await fetchImpl(`${baseOf(baseUrl)}/audio/transcriptions`, {

@@ -6,6 +6,7 @@ on:
     paths: ["desktop/**", ".github/workflows/desktop-*.yml"]
   pull_request:
     paths: ["desktop/**", ".github/workflows/desktop-*.yml"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,3 +26,27 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - run: npm ci --ignore-scripts
       - run: npm test
+
+  # Builds the Windows installer (unsigned) and uploads it as a workflow artifact,
+  # so the Windows build can be checked and tried before a release is tagged.
+  windows-build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Build Windows installer
+        run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zer0-windows-installer
+          path: desktop/release/*.exe
+          if-no-files-found: error

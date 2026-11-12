@@ -22,6 +22,11 @@ const DEFAULT_SETTINGS = Object.freeze({
     fromNumber: '',
   },
   contacts: [],
+  wakeWord: {
+    enabled: false,
+    phrase: 'Hey Zero',
+    sensitivity: 'normal',
+  },
   hotkey: 'CommandOrControl+Shift+Space',
   launchAtLogin: false,
   alwaysOnTop: true,
@@ -60,6 +65,18 @@ function mergeKnown(base, patch) {
   return out;
 }
 
+const WAKE_SENSITIVITIES = ['low', 'normal', 'high'];
+
+/** Keep the wake-word settings in a safe, usable state. */
+function sanitizeWakeWord(w) {
+  const phrase = typeof w?.phrase === 'string' ? w.phrase.replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  return {
+    enabled: Boolean(w?.enabled),
+    phrase: /\p{L}/u.test(phrase) ? phrase : DEFAULT_SETTINGS.wakeWord.phrase,
+    sensitivity: WAKE_SENSITIVITIES.includes(w?.sensitivity) ? w.sensitivity : 'normal',
+  };
+}
+
 /** Normalise a contacts list to `{ name, phone }` entries, dropping anything malformed. */
 function sanitizeContacts(list) {
   if (!Array.isArray(list)) return [];
@@ -94,6 +111,7 @@ class ConfigStore {
     }
     const merged = mergeKnown(DEFAULT_SETTINGS, raw);
     merged.contacts = sanitizeContacts(merged.contacts);
+    merged.wakeWord = sanitizeWakeWord(merged.wakeWord);
     return merged;
   }
 
@@ -108,6 +126,7 @@ class ConfigStore {
   updateSettings(patch) {
     const next = mergeKnown(this.settings, patch);
     next.contacts = sanitizeContacts(next.contacts);
+    next.wakeWord = sanitizeWakeWord(next.wakeWord);
     this.settings = next;
     this.#writeJson(this.settingsPath, next);
     return this.settings;
@@ -184,4 +203,5 @@ module.exports = {
   SECRET_NAMES,
   mergeKnown,
   sanitizeContacts,
+  sanitizeWakeWord,
 };

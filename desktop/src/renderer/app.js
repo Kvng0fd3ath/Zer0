@@ -16,6 +16,7 @@
     send: $('btn-send'),
     mic: $('btn-mic'),
     toast: $('toast'),
+    wakeBadge: $('wake-badge'),
     settings: $('settings'),
     form: $('settings-form'),
   };
@@ -26,7 +27,15 @@
     audio: null,
     state: null,
     toastTimer: null,
+    resumeAt: 0, // wake listening stays paused until this time (lets the speaker's echo die down)
+    awaitingUntil: 0, // after a bare "Hey Zero", the next utterance is taken as the command
   };
+
+  const wake = window.Zer0WakeListener.createWakeListener({
+    onUtterance: handleWakeUtterance,
+    isPaused: wakePaused,
+    onState: onWakeState,
+  });
 
   // ---------- helpers ----------
 
@@ -60,6 +69,66 @@
     return (err && err.message) || 'Something went wrong.';
   }
 
+  function wakePaused() {
+    return ui.busy || Boolean(ui.recording) || Boolean(ui.audio) || window.speechSynthesis?.speaking === true
+      || Date.now() < ui.resumeAt;
+  }
+
+  function onWakeState(state, error) {
+    el.wakeBadge.hidden = state !== 'listening';
+    if (error) toast(error, { bad: true, ms: 7000 });
+  }
+
+  function wakePhrase() {
+    return ui.state?.settings?.wakeWord?.phrase || 'Hey Zero';
+  }
+
+  async function applyWake() {
+    const cfg = ui.state?.settings?.wakeWord;
+    const canListen = Boolean(cfg?.enabled && ui.state?.secretsSet.openaiApiKey);
+    if (!canListen) {
+      wake.stop();
+      return;
+    }
+    if (wake.running) {
+      // Sensitivity changes need a fresh stream with the new threshold.
+      wake.stop();
+    }
+    await wake.start({ sensitivity: cfg.sensitivity });
+    if (wake.running) setStatus(`Listening for "${wakePhrase()}".`);
+  }
+
+  async function handleWakeUtterance(blob) {
+    if (ui.busy || !ui.state?.secretsSet.openaiApiKey) return;
+    let text = '';
+    try {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      text = await api.invoke('voice:transcribe', bytes, blob.type, wakePhrase());
+    } catch (err) {
+      // Transient transcription failures should not interrupt the user.
+      console.warn('Wake transcription failed:', errorText(err));
+      return;
+    }
+    if (!text || ui.busy) return;
+
+    if (Date.now() < ui.awaitingUntil) {
+      ui.awaitingUntil = 0;
+      sendMessage(text);
+      return;
+    }
+
+    const match = window.Zer0WakeWord.matchWake(text, wakePhrase());
+    if (!match.matched) return;
+
+    window.Zer0WakeListener.playChime();
+    if (match.command) {
+      sendMessage(match.command);
+    } else {
+      ui.awaitingUntil = Date.now() + 8000;
+      setStatus('Yes?');
+    }
+  }
+
   // ---------- speech out ----------
 
   function stopSpeaking() {
@@ -75,8 +144,8 @@
     if (!('speechSynthesis' in window)) return;
     const utter = new SpeechSynthesisUtterance(text);
     utter.onstart = () => setOrb('speaking');
-    utter.onend = () => setOrb('idle');
-    utter.onerror = () => setOrb('idle');
+    utter.onend = () => { ui.resumeAt = Date.now() + 800; setOrb('idle'); };
+    utter.onerror = () => { ui.resumeAt = Date.now() + 800; setOrb('idle'); };
     window.speechSynthesis.speak(utter);
   }
 
@@ -97,6 +166,7 @@
       const done = () => {
         if (ui.audio === audio) ui.audio = null;
         URL.revokeObjectURL(url);
+        ui.resumeAt = Date.now() + 800;
         if (!ui.busy && !ui.recording) setOrb('idle');
       };
       audio.onended = done;
@@ -212,6 +282,7 @@
       setTimeout(() => setOrb('idle'), 2500);
     } finally {
       ui.busy = false;
+      ui.resumeAt = Date.now() + 800;
       el.send.disabled = false;
       el.input.focus();
     }
@@ -294,6 +365,9 @@
     launchAtLogin: (_v, el) => el.checked,
     alwaysOnTop: (_v, el) => el.checked,
     autoUpdate: (_v, el) => el.checked,
+    'wakeWord.enabled': (_v, el) => el.checked,
+    'wakeWord.phrase': (v) => v.trim(),
+    'wakeWord.sensitivity': (v) => v,
   };
 
   function parseContacts(text) {
@@ -319,6 +393,7 @@
       else input.value = value ?? '';
     }
     el.form.elements.namedItem('voice.ttsVoice').value = s.voice.ttsVoice;
+    el.form.elements.namedItem('wakeWord.sensitivity').value = s.wakeWord.sensitivity;
     el.form.elements.namedItem('contacts').value = s.contacts.map((c) => `${c.name}, ${c.phone}`).join('\n');
 
     const set = state.secretsSet;
@@ -407,6 +482,7 @@
     try {
       ui.state = await api.invoke('settings:update', collectSettingsPatch());
       fillSettingsForm(ui.state);
+      await applyWake();
       toast('Settings saved.');
       el.settings.hidden = true;
     } catch (err) {
@@ -459,10 +535,14 @@
       const transcript = await api.invoke('chat:transcript');
       for (const m of transcript) addMessage(m.role, m.content);
       await refreshActions();
+      await applyWake();
       const welcome = ui.state.settings.userName ? `Good to see you, ${ui.state.settings.userName}.` : 'Online.';
       if (!transcript.length) setStatus(`${welcome} Type below, or press the mic.`);
       if (!ui.state.secretsSet.openaiApiKey) {
         setStatus('Add your OpenAI API key in Settings to start.', { offline: true });
+      }
+      if (ui.state.settings.wakeWord.enabled && ui.state.secretsSet.openaiApiKey) {
+        setStatus(`Listening for "${wakePhrase()}".`);
       }
     } catch (err) {
       setStatus(errorText(err), { offline: true });

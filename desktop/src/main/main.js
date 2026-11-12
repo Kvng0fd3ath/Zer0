@@ -84,6 +84,8 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // Keep the wake-word listener running at full speed while the window is hidden in the tray.
+      backgroundThrottling: false,
     },
   });
 
@@ -192,7 +194,7 @@ function registerIpc() {
   handle('actions:cancel', (id) => companion.cancel(String(id)));
   handle('actions:list', () => queue.list());
 
-  handle('voice:transcribe', async (bytes, mimeType) => {
+  handle('voice:transcribe', async (bytes, mimeType, prompt) => {
     const rt = store.runtime();
     const audio = Buffer.from(bytes);
     if (audio.length > 25 * 1024 * 1024) throw new Error('Recording is too long.');
@@ -202,6 +204,7 @@ function registerIpc() {
       model: rt.voice.sttModel,
       audio,
       mimeType: typeof mimeType === 'string' ? mimeType : 'audio/webm',
+      prompt: typeof prompt === 'string' ? prompt : '',
     });
   });
 
@@ -259,6 +262,8 @@ function buildServices() {
 }
 
 function start() {
+  // Windows groups taskbar buttons, notifications and the installer shortcut by this ID.
+  if (process.platform === 'win32') app.setAppUserModelId(app.isPackaged ? 'com.kvng0fd3ath.zer0' : process.execPath);
   buildServices();
   configureSessionSecurity();
   registerIpc();

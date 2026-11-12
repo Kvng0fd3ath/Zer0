@@ -72,3 +72,10 @@ test('synthesizeSpeech returns a Buffer and truncates long input', async () => {
   assert.equal(body.response_format, 'mp3');
   assert.equal(body.input.length, 4000);
 });
+
+test('transcribeAudio passes the optional prompt to Whisper', async () => {
+  let seen;
+  const fetchImpl = async (url, init) => { seen = init; return jsonResponse({ text: 'hey zero' }); };
+  await transcribeAudio({ apiKey: 'k', model: 'stt', audio: Buffer.from([1]), prompt: 'Hey Zero', fetchImpl });
+  assert.equal(seen.body.get('prompt'), 'Hey Zero');
+});

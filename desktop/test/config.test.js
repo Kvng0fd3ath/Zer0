@@ -73,3 +73,20 @@ test('empty value deletes a secret', () => {
   store.setSecret('twilioAuthToken', '');
   assert.equal(store.getSecret('twilioAuthToken'), '');
 });
+
+test('wake word defaults are off, "Hey Zero", normal sensitivity', () => {
+  const store = new ConfigStore({ dir: tmpDir(), env: {} });
+  assert.deepEqual(store.settings.wakeWord, { enabled: false, phrase: 'Hey Zero', sensitivity: 'normal' });
+});
+
+test('wake word settings are sanitised on update', () => {
+  const store = new ConfigStore({ dir: tmpDir(), env: {} });
+  store.updateSettings({ wakeWord: { enabled: true, phrase: '  Hey,   Zero!!  ', sensitivity: 'extreme' } });
+  assert.deepEqual(store.settings.wakeWord, { enabled: true, phrase: 'Hey Zero', sensitivity: 'normal' });
+  store.updateSettings({ wakeWord: { enabled: 'yes' } });
+  assert.equal(store.settings.wakeWord.enabled, true, 'wrong-typed values are ignored, previous value kept');
+  store.updateSettings({ wakeWord: { phrase: '1234 !!!' } });
+  assert.equal(store.settings.wakeWord.phrase, 'Hey Zero', 'phrase without letters falls back to default');
+  store.updateSettings({ wakeWord: { phrase: 'x'.repeat(100) } });
+  assert.equal(store.settings.wakeWord.phrase.length, 40);
+});

@@ -16,6 +16,7 @@
         <div class="brand">
           <span class="pulse-dot" id="status-dot"></span>
           <span class="brand-name" id="brand-name">Zer0</span>
+          <span class="wake-badge" id="wake-badge" hidden title="Wake word listening is on">Listening</span>
         </div>
         <div class="win-controls no-drag">
           <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">Settings</button>
@@ -81,6 +82,20 @@
           </fieldset>
 
           <fieldset>
+            <legend>Wake word</legend>
+            <label class="check"><input type="checkbox" name="wakeWord.enabled" /> Listen for the wake phrase</label>
+            <label>Wake phrase <input name="wakeWord.phrase" maxlength="40" placeholder="Hey Zero" /></label>
+            <label>Sensitivity
+              <select name="wakeWord.sensitivity">
+                <option value="low">Low (quiet room, fewer false alarms)</option>
+                <option value="normal">Normal</option>
+                <option value="high">High (soft voice, noisy room)</option>
+              </select>
+            </label>
+            <p class="hint">Only short bursts of speech are sent to OpenAI to check for the phrase. Silence and background noise stay on this PC. Turn it off to stop all listening.</p>
+          </fieldset>
+
+          <fieldset>
             <legend>Calls and texts (Twilio)</legend>
             <label>Account SID
               <span class="secret-row">
@@ -129,6 +144,9 @@
         </form>
       </aside>
     </div>
+    <script src="wake-word.js"></script>
+    <script src="endpointer.js"></script>
+    <script src="wake-listener.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
