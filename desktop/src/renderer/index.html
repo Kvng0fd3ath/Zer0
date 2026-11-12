@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zer0</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="titlebar drag">
+        <div class="brand">
+          <span class="pulse-dot" id="status-dot"></span>
+          <span class="brand-name" id="brand-name">Zer0</span>
+          <span class="wake-badge" id="wake-badge" hidden title="Wake word listening is on">Listening</span>
+        </div>
+        <div class="win-controls no-drag">
+          <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">Settings</button>
+          <button class="icon-btn" id="btn-min" title="Minimise" aria-label="Minimise">&#8211;</button>
+          <button class="icon-btn" id="btn-hide" title="Hide to tray" aria-label="Hide to tray">&#215;</button>
+        </div>
+      </header>
+
+      <section class="core">
+        <div class="orb" id="orb" data-state="idle" aria-hidden="true">
+          <span class="ring r1"></span>
+          <span class="ring r2"></span>
+          <span class="ring r3"></span>
+          <span class="orb-core"></span>
+        </div>
+        <p class="status" id="status" role="status">Online. Type below, or press the mic.</p>
+      </section>
+
+      <section class="log" id="log" aria-live="polite"></section>
+
+      <section class="actions" id="actions" aria-label="Actions waiting for your confirmation"></section>
+
+      <form class="composer" id="composer" autocomplete="off">
+        <button type="button" class="mic" id="btn-mic" title="Push to talk" aria-label="Push to talk">Mic</button>
+        <input id="input" type="text" placeholder="Ask me anything..." maxlength="4000" aria-label="Message" />
+        <button type="submit" class="send" id="btn-send">Send</button>
+      </form>
+
+      <div class="toast" id="toast" role="alert" hidden></div>
+
+      <aside class="drawer" id="settings" hidden aria-label="Settings">
+        <div class="drawer-head">
+          <h2>Settings</h2>
+          <button class="icon-btn" id="btn-close-settings" aria-label="Close settings">&#215;</button>
+        </div>
+
+        <form id="settings-form" class="drawer-body">
+          <fieldset>
+            <legend>Identity</legend>
+            <label>Assistant name <input name="assistantName" maxlength="40" /></label>
+            <label>Your name <input name="userName" maxlength="60" /></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>AI model and voice (OpenAI key)</legend>
+            <label>OpenAI API key
+              <span class="secret-row">
+                <input type="password" id="key-openai" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="openaiApiKey" data-input="key-openai">Save</button>
+              </span>
+              <small class="hint" id="hint-openai"></small>
+            </label>
+            <label>Chat model <input name="llm.model" maxlength="80" /></label>
+            <label>API base URL <input name="llm.baseUrl" maxlength="200" /></label>
+            <label class="check"><input type="checkbox" name="voice.enabled" /> Speak replies aloud</label>
+            <label>Voice
+              <select name="voice.ttsVoice">
+                <option>alloy</option><option>ash</option><option>ballad</option><option>coral</option>
+                <option>echo</option><option>fable</option><option>nova</option><option>onyx</option>
+                <option>sage</option><option>shimmer</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Wake word</legend>
+            <label class="check"><input type="checkbox" name="wakeWord.enabled" /> Listen for the wake phrase</label>
+            <label>Wake phrase <input name="wakeWord.phrase" maxlength="40" placeholder="Hey Zero" /></label>
+            <label>Sensitivity
+              <select name="wakeWord.sensitivity">
+                <option value="low">Low (quiet room, fewer false alarms)</option>
+                <option value="normal">Normal</option>
+                <option value="high">High (soft voice, noisy room)</option>
+              </select>
+            </label>
+            <p class="hint">Only short bursts of speech are sent to OpenAI to check for the phrase. Silence and background noise stay on this PC. Turn it off to stop all listening.</p>
+          </fieldset>
+
+          <fieldset>
+            <legend>Calls and texts (Twilio)</legend>
+            <label>Account SID
+              <span class="secret-row">
+                <input type="password" id="key-sid" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="twilioAccountSid" data-input="key-sid">Save</button>
+              </span>
+            </label>
+            <label>Auth token
+              <span class="secret-row">
+                <input type="password" id="key-token" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="twilioAuthToken" data-input="key-token">Save</button>
+              </span>
+              <small class="hint" id="hint-twilio"></small>
+            </label>
+            <label>From number (E.164) <input name="twilio.fromNumber" placeholder="+15550001111" maxlength="20" /></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Contacts</legend>
+            <label>One per line: name, phone
+              <textarea name="contacts" rows="4" placeholder="Mom, +15551234567"></textarea>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Desktop</legend>
+            <label>Push-to-talk hotkey <input name="hotkey" maxlength="60" /></label>
+            <label class="check"><input type="checkbox" name="launchAtLogin" /> Start when I sign in</label>
+            <label class="check"><input type="checkbox" name="alwaysOnTop" /> Keep on top of other windows</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Updates</legend>
+            <label class="check"><input type="checkbox" name="autoUpdate" /> Install updates automatically</label>
+            <p class="hint" id="update-line">Checking…</p>
+            <div class="row">
+              <button type="button" class="small" id="btn-check-update">Check now</button>
+              <button type="button" class="small primary" id="btn-install-update" hidden>Restart to update</button>
+            </div>
+            <p class="hint" id="version-line"></p>
+          </fieldset>
+
+          <div class="row end">
+            <button type="submit" class="primary" id="btn-save-settings">Save settings</button>
+          </div>
+        </form>
+      </aside>
+    </div>
+    <script src="wake-word.js"></script>
+    <script src="endpointer.js"></script>
+    <script src="wake-listener.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
