@@ -1,7 +1,7 @@
 {
   "name": "zer0-desktop",
-  "version": "0.1.0",
-  "description": "Zer0 \u2014 a Jarvis-style AI desktop companion that can chat, speak, text and call.",
+  "version": "0.1.1",
+  "description": "Zer0 — a Jarvis-style AI desktop companion that can chat, speak, text and call.",
   "author": "Kvng0fd3ath",
   "license": "UNLICENSED",
   "private": true,

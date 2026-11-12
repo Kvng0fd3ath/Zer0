@@ -396,6 +396,13 @@
     el.form.elements.namedItem('wakeWord.sensitivity').value = s.wakeWord.sensitivity;
     el.form.elements.namedItem('contacts').value = s.contacts.map((c) => `${c.name}, ${c.phone}`).join('\n');
 
+    refreshSecretHints(state);
+    el.brandName.textContent = s.assistantName || 'Zer0';
+    $('version-line').textContent = `Version ${state.version}${state.packaged ? '' : ' (development build)'}`;
+  }
+
+  /** Updates the key hints only. Saving a key must not overwrite unsaved edits elsewhere in the form. */
+  function refreshSecretHints(state) {
     const set = state.secretsSet;
     $('hint-openai').textContent = set.openaiApiKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.';
     $('hint-twilio').textContent = set.twilioAccountSid && set.twilioAuthToken
@@ -404,8 +411,6 @@
     $('key-openai').placeholder = set.openaiApiKey ? '•••• saved ••••' : 'sk-...';
     $('key-sid').placeholder = set.twilioAccountSid ? '•••• saved ••••' : 'AC...';
     $('key-token').placeholder = set.twilioAuthToken ? '•••• saved ••••' : 'Auth token';
-    el.brandName.textContent = s.assistantName || 'Zer0';
-    $('version-line').textContent = `Version ${state.version}${state.packaged ? '' : ' (development build)'}`;
   }
 
   function collectSettingsPatch() {
@@ -450,7 +455,7 @@
     try {
       ui.state = await api.invoke('secrets:set', { name, value });
       input.value = '';
-      fillSettingsForm(ui.state);
+      refreshSecretHints(ui.state);
       toast('Saved securely on this device.');
     } catch (err) {
       toast(errorText(err), { bad: true, ms: 6000 });
