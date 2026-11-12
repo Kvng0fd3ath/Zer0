@@ -1,0 +1,46 @@
+name: Desktop release
+
+# Push a tag like `desktop-v0.2.0` (matching desktop/package.json "version") to build installers
+# for Windows, macOS and Linux and publish them to GitHub Releases. Installed copies of Zer0
+# check that release feed and update themselves automatically.
+on:
+  push:
+    tags: ["desktop-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/desktop-v')
+        shell: bash
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          tag=${GITHUB_REF_NAME#desktop-v}
+          if [ "$pkg" != "$tag" ]; then echo "Tag $tag does not match package.json $pkg"; exit 1; fi
+      - run: npm ci
+      - run: npm test
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional code signing. Without these, builds are unsigned; macOS/Windows will warn on first launch.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: npx electron-builder --publish always
