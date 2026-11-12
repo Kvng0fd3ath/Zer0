@@ -405,6 +405,12 @@
   function refreshSecretHints(state) {
     const set = state.secretsSet;
     $('hint-openai').textContent = set.openaiApiKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.';
+    $('hint-llm').textContent = set.llmApiKey
+      ? 'A chat key is saved.'
+      : set.openaiApiKey
+        ? 'No chat key: chat uses the OpenAI key below.'
+        : 'No chat key saved yet.';
+    $('key-llm').placeholder = set.llmApiKey ? '•••• saved ••••' : 'nvapi-... or sk-...';
     $('hint-twilio').textContent = set.twilioAccountSid && set.twilioAuthToken
       ? 'Twilio credentials are saved.'
       : 'Needed for texts and calls.';
@@ -449,6 +455,16 @@
     }
   }
 
+  async function clearSecret(name) {
+    try {
+      ui.state = await api.invoke('secrets:set', { name, value: '' });
+      refreshSecretHints(ui.state);
+      toast('Key removed.');
+    } catch (err) {
+      toast(errorText(err), { bad: true, ms: 6000 });
+    }
+  }
+
   async function saveSecret(name, input) {
     const value = input.value.trim();
     if (!value) { toast('Paste a value first.', { bad: true }); return; }
@@ -478,6 +494,10 @@
 
   document.querySelectorAll('[data-save-secret]').forEach((btn) => {
     btn.addEventListener('click', () => saveSecret(btn.dataset.saveSecret, $(btn.dataset.input)));
+  });
+
+  document.querySelectorAll('[data-clear-secret]').forEach((btn) => {
+    btn.addEventListener('click', () => clearSecret(btn.dataset.clearSecret));
   });
 
   el.form.addEventListener('submit', async (e) => {
