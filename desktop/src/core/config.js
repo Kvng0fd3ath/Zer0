@@ -17,6 +17,11 @@ const DEFAULT_SETTINGS = Object.freeze({
     sttModel: 'gpt-4o-mini-transcribe',
     ttsModel: 'gpt-4o-mini-tts',
     ttsVoice: 'alloy',
+    // NVIDIA speech-to-text (free with the chat key). Speech is English (en-US) for this model.
+    nvidiaSttUrl: 'https://1598d209-5e27-4d3c-8079-4751568b1081.invocation.api.nvcf.nvidia.com/v1/audio/transcriptions',
+    nvidiaSttLanguage: 'en-US',
+    // Fish Audio voice model ID (optional). Blank uses Fish's default voice.
+    fishVoiceId: '',
   },
   twilio: {
     fromNumber: '',
@@ -33,10 +38,14 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoUpdate: true,
 });
 
+/** NVIDIA keys start with nvapi-. They only ever go to NVIDIA's services. */
+const isNvidiaKey = (key) => typeof key === 'string' && key.startsWith('nvapi-');
+
 /** Secrets are stored encrypted (via an injected codec) and never sent to the renderer. */
 const SECRET_ENV_FALLBACK = Object.freeze({
   llmApiKey: 'LLM_API_KEY',
   openaiApiKey: 'OPENAI_API_KEY',
+  fishApiKey: 'FISH_API_KEY',
   twilioAccountSid: 'TWILIO_ACCOUNT_SID',
   twilioAuthToken: 'TWILIO_AUTH_TOKEN',
 });
@@ -85,6 +94,26 @@ function sanitizeContacts(list) {
     .filter((c) => isPlainObject(c) && typeof c.name === 'string' && typeof c.phone === 'string')
     .map((c) => ({ name: c.name.trim().slice(0, 80), phone: c.phone.trim().slice(0, 32) }))
     .filter((c) => c.name && c.phone);
+}
+
+/**
+ * Picks the speech services. Speech-to-text prefers NVIDIA (free with an nvapi- key), then OpenAI.
+ * Speech output prefers Fish Audio, then OpenAI, then the Windows voice. An nvapi- key is never
+ * used for OpenAI.
+ */
+function voiceEngines({ llmKey, openaiKey, fishKey, fishVoiceId }) {
+  const openaiOk = Boolean(openaiKey) && !isNvidiaKey(openaiKey);
+  const stt = isNvidiaKey(llmKey)
+    ? { engine: 'nvidia', apiKey: llmKey }
+    : openaiOk
+      ? { engine: 'openai', apiKey: openaiKey }
+      : { engine: 'none', apiKey: '' };
+  const tts = fishKey
+    ? { engine: 'fish', apiKey: fishKey, voiceId: String(fishVoiceId || '').trim() }
+    : openaiOk
+      ? { engine: 'openai', apiKey: openaiKey }
+      : { engine: 'windows', apiKey: '' };
+  return { stt, tts };
 }
 
 class ConfigStore {
@@ -172,21 +201,25 @@ class ConfigStore {
   publicView() {
     const secretsSet = {};
     for (const name of SECRET_NAMES) secretsSet[name] = Boolean(this.getSecret(name));
-    return { settings: this.settings, secretsSet };
+    const { voice } = this.runtime();
+    // Engine names only, never keys.
+    const voiceEnginesView = { stt: voice.stt.engine, tts: voice.tts.engine };
+    return { settings: this.settings, secretsSet, voiceEngines: voiceEnginesView };
   }
 
   /** Resolved configuration for the agent, voice and Twilio clients. Never sent to the renderer. */
   runtime() {
     const s = this.settings;
     // Chat uses its own key (NVIDIA, OpenAI or another compatible provider). It falls back to the
-    // OpenAI key so existing setups keep working. Voice and the wake word always use the OpenAI key.
+    // OpenAI key so existing setups keep working. Speech services are chosen in voiceEngines().
     const llmKey = this.getSecret('llmApiKey') || this.getSecret('openaiApiKey');
-    const voiceKey = this.getSecret('openaiApiKey');
+    const openaiKey = this.getSecret('openaiApiKey');
+    const fishKey = this.getSecret('fishApiKey');
     return {
       assistantName: s.assistantName,
       userName: s.userName,
       llm: { baseUrl: s.llm.baseUrl, model: s.llm.model, apiKey: llmKey },
-      voice: { ...s.voice, apiKey: voiceKey },
+      voice: { ...s.voice, ...voiceEngines({ llmKey, openaiKey, fishKey, fishVoiceId: s.voice.fishVoiceId }) },
       twilio: {
         accountSid: this.getSecret('twilioAccountSid'),
         authToken: this.getSecret('twilioAuthToken'),
@@ -203,6 +236,8 @@ function assertSecretName(name) {
 
 module.exports = {
   ConfigStore,
+  voiceEngines,
+  isNvidiaKey,
   DEFAULT_SETTINGS,
   SECRET_NAMES,
   mergeKnown,

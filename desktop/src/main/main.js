@@ -20,7 +20,7 @@ const { Companion } = require('../core/agent');
 const { createToolRegistry } = require('../core/tools');
 const { ActionQueue } = require('../core/actions');
 const { TwilioClient } = require('../core/twilio');
-const { transcribeAudio, synthesizeSpeech } = require('../core/voice');
+const { transcribeAudio, synthesizeSpeech, transcribeWithNvidia, synthesizeWithFish } = require('../core/voice');
 const { createUpdater } = require('./updater');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -240,26 +240,40 @@ function registerIpc() {
     const rt = store.runtime();
     const audio = Buffer.from(bytes);
     if (audio.length > 25 * 1024 * 1024) throw new Error('Recording is too long.');
-    return transcribeAudio({
-      baseUrl: rt.voice.baseUrl,
-      apiKey: rt.voice.apiKey,
-      model: rt.voice.sttModel,
-      audio,
-      mimeType: typeof mimeType === 'string' ? mimeType : 'audio/webm',
-      prompt: typeof prompt === 'string' ? prompt : '',
-    });
+    const type = typeof mimeType === 'string' ? mimeType : 'audio/webm';
+    const stt = rt.voice.stt;
+    if (stt.engine === 'nvidia') {
+      // NVIDIA takes 16 kHz mono WAV; the renderer converts each recording before sending.
+      if (type !== 'audio/wav') throw new Error('Could not prepare the recording for NVIDIA speech.');
+      return transcribeWithNvidia({ url: rt.voice.nvidiaSttUrl, apiKey: stt.apiKey, language: rt.voice.nvidiaSttLanguage, wav: audio });
+    }
+    if (stt.engine === 'openai') {
+      return transcribeAudio({
+        baseUrl: rt.voice.baseUrl,
+        apiKey: stt.apiKey,
+        model: rt.voice.sttModel,
+        audio,
+        mimeType: type,
+        prompt: typeof prompt === 'string' ? prompt : '',
+      });
+    }
+    throw new Error('Voice input needs an NVIDIA key or an OpenAI key. Add one in Settings.');
   });
 
   handle('voice:speak', async (text) => {
     const rt = store.runtime();
-    if (!rt.voice.enabled || !rt.voice.apiKey) return null;
-    const mp3 = await synthesizeSpeech({
-      baseUrl: rt.voice.baseUrl,
-      apiKey: rt.voice.apiKey,
-      model: rt.voice.ttsModel,
-      voice: rt.voice.ttsVoice,
-      text: String(text ?? ''),
-    });
+    const tts = rt.voice.tts;
+    if (!rt.voice.enabled || tts.engine === 'windows') return null;
+    const input = String(text ?? '');
+    const mp3 = tts.engine === 'fish'
+      ? await synthesizeWithFish({ apiKey: tts.apiKey, voiceId: tts.voiceId, text: input })
+      : await synthesizeSpeech({
+        baseUrl: rt.voice.baseUrl,
+        apiKey: tts.apiKey,
+        model: rt.voice.ttsModel,
+        voice: rt.voice.ttsVoice,
+        text: input,
+      });
     return new Uint8Array(mp3);
   });
 

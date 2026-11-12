@@ -95,25 +95,31 @@ test('chat key is separate from the OpenAI key, and falls back to it', () => {
   const store = new ConfigStore({ dir: tmpDir(), env: {} });
   store.setSecret('openaiApiKey', 'sk-openai');
   assert.equal(store.runtime().llm.apiKey, 'sk-openai', 'no chat key set: chat falls back to the OpenAI key');
-  assert.equal(store.runtime().voice.apiKey, 'sk-openai');
+  assert.equal(store.runtime().voice.stt.apiKey, 'sk-openai');
+  assert.equal(store.runtime().voice.tts.apiKey, 'sk-openai');
 
   store.setSecret('llmApiKey', 'nvapi-chat');
   assert.equal(store.runtime().llm.apiKey, 'nvapi-chat', 'chat uses its own key');
-  assert.equal(store.runtime().voice.apiKey, 'sk-openai', 'voice keeps the OpenAI key');
+  assert.equal(store.runtime().voice.stt.engine, 'nvidia', 'speech-to-text uses the NVIDIA chat key');
+  assert.equal(store.runtime().voice.stt.apiKey, 'nvapi-chat');
+  assert.equal(store.runtime().voice.tts.apiKey, 'sk-openai', 'speech output keeps the OpenAI key');
   assert.equal(store.publicView().secretsSet.llmApiKey, true);
 });
 
-test('an NVIDIA key in the chat slot never reaches the voice service', () => {
+test('an NVIDIA key in the chat slot never reaches OpenAI', () => {
   const store = new ConfigStore({ dir: tmpDir(), env: {} });
   store.setSecret('llmApiKey', 'nvapi-chat');
-  assert.equal(store.runtime().voice.apiKey, '', 'voice has no key, so the app uses the Windows voice');
+  assert.equal(store.runtime().voice.tts.engine, 'windows', 'no OpenAI or Fish key: the app uses the Windows voice');
+  assert.equal(store.runtime().voice.tts.apiKey, '');
+  assert.equal(store.runtime().voice.stt.apiKey, 'nvapi-chat', 'speech-to-text goes to NVIDIA only');
 });
 
 test('clearing the OpenAI key removes it from voice and chat fallback', () => {
   const store = new ConfigStore({ dir: tmpDir(), env: {} });
   store.setSecret('openaiApiKey', 'nvapi-wrong-slot');
   store.setSecret('openaiApiKey', '');
-  assert.equal(store.runtime().voice.apiKey, '');
+  assert.equal(store.runtime().voice.stt.apiKey, '');
+  assert.equal(store.runtime().voice.tts.apiKey, '');
   assert.equal(store.runtime().llm.apiKey, '');
 });
 

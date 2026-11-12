@@ -15,13 +15,20 @@ A personal AI assistant that lives in a native Windows window and tray icon. Say
 
 1. Download `Zer0-Setup-<version>-x64.exe` from the [Releases page](https://github.com/Kvng0fd3ath/Zer0/releases) and run it. It installs per user, with no admin rights needed.
 2. Open **Settings** (top right) and add:
-   - an **OpenAI API key** (chat, voice and wake word),
+   - an **NVIDIA API key** (`nvapi-...`, free at build.nvidia.com) as the **chat key**. It also powers speech-to-text and the wake word,
+   - optionally a **Fish Audio API key** for natural spoken replies (otherwise Zer0 uses the Windows voice),
+   - or an **OpenAI API key** instead, if you prefer OpenAI for chat and voice,
    - optionally a **Twilio** Account SID, Auth token and a From number you own (for texts and calls),
    - your **contacts**, one per line, as `Name, +15551234567`,
    - optionally, turn on **Listen for the wake phrase**.
 3. Keys are encrypted with Windows DPAPI and are never shown back in the UI.
 
-Environment variables work as a fallback: `OPENAI_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
+Environment variables work as a fallback: `LLM_API_KEY`, `OPENAI_API_KEY`, `FISH_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`.
+
+**Which service does what**
+- Speech to text (push-to-talk and the wake word): NVIDIA when your chat key is an `nvapi-` key, otherwise OpenAI. NVIDIA's model is English only.
+- Spoken replies: Fish Audio if a Fish key is set, otherwise OpenAI if an OpenAI key is set, otherwise the Windows voice.
+- An `nvapi-` key is only ever sent to NVIDIA.
 
 ### Windows checklist
 
@@ -31,7 +38,7 @@ Environment variables work as a fallback: `OPENAI_API_KEY`, `TWILIO_ACCOUNT_SID`
 
 ## How the wake word works
 
-- Zer0 keeps the microphone open, but it only sends audio when it hears speech. A level meter watches the mic, and each short burst of speech is transcribed by OpenAI and checked for the phrase.
+- Zer0 keeps the microphone open, but it only sends audio when it hears speech. A level meter watches the mic, and each short burst of speech is transcribed by NVIDIA (or OpenAI, if that is what is set up) and checked for the phrase.
 - Silence and background noise never leave the PC. Speech bursts do, so turn the feature off if that is not acceptable.
 - Listening pauses while Zer0 is busy or speaking, so it does not hear its own voice.
 - Matching ignores case, punctuation, and "0" vs "o" (Whisper writes both as "Zero" or "Zer0"). Say the phrase in a normal voice; sensitivity can be raised for soft voices or lowered in noisy rooms.
@@ -74,6 +81,6 @@ Notes:
 
 - Calls and texts always need an explicit confirmation in the UI. Pending confirmations expire after 10 minutes.
 - Each confirmation card shows the exact recipient number and full message or call script. Contact names are resolved from your saved list only.
-- The page cannot reach the network directly (`connect-src 'none'`). Only the main process calls the OpenAI and Twilio APIs.
+- The page cannot reach the network directly (`connect-src 'none'`). Only the main process calls the NVIDIA, OpenAI, Fish Audio and Twilio APIs.
 - Only the microphone permission is granted, and only to this window.
 - Conversation history is kept in memory and cleared when the app quits.
