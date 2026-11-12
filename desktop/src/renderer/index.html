@@ -61,17 +61,32 @@
           </fieldset>
 
           <fieldset>
-            <legend>AI model and voice (OpenAI key)</legend>
+            <legend>Chat (NVIDIA, OpenAI or compatible)</legend>
+            <label>Chat API key
+              <span class="secret-row">
+                <input type="password" id="key-llm" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="llmApiKey" data-input="key-llm">Save</button>
+                <button type="button" class="small danger" data-clear-secret="llmApiKey">Clear</button>
+              </span>
+              <small class="hint" id="hint-llm"></small>
+            </label>
+            <label>Chat model <input name="llm.model" maxlength="80" /></label>
+            <label>API base URL <input name="llm.baseUrl" maxlength="200" placeholder="https://integrate.api.nvidia.com/v1" /></label>
+            <small class="hint">NVIDIA example: base URL https://integrate.api.nvidia.com/v1, model nvidia/nemotron-3.5-bolt-e4b</small>
+          </fieldset>
+
+          <fieldset>
+            <legend>Voice and wake word (OpenAI key)</legend>
             <label>OpenAI API key
               <span class="secret-row">
                 <input type="password" id="key-openai" autocomplete="off" spellcheck="false" />
                 <button type="button" class="small" data-save-secret="openaiApiKey" data-input="key-openai">Save</button>
+                <button type="button" class="small danger" data-clear-secret="openaiApiKey">Clear</button>
               </span>
               <small class="hint" id="hint-openai"></small>
             </label>
-            <label>Chat model <input name="llm.model" maxlength="80" /></label>
-            <label>API base URL <input name="llm.baseUrl" maxlength="200" /></label>
             <label class="check"><input type="checkbox" name="voice.enabled" /> Speak replies aloud</label>
+            <small class="hint">Without an OpenAI key, replies are read with the Windows voice.</small>
             <label>Voice
               <select name="voice.ttsVoice">
                 <option>alloy</option><option>ash</option><option>ballad</option><option>coral</option>

@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = Object.freeze({
 
 /** Secrets are stored encrypted (via an injected codec) and never sent to the renderer. */
 const SECRET_ENV_FALLBACK = Object.freeze({
+  llmApiKey: 'LLM_API_KEY',
   openaiApiKey: 'OPENAI_API_KEY',
   twilioAccountSid: 'TWILIO_ACCOUNT_SID',
   twilioAuthToken: 'TWILIO_AUTH_TOKEN',
@@ -177,12 +178,15 @@ class ConfigStore {
   /** Resolved configuration for the agent, voice and Twilio clients. Never sent to the renderer. */
   runtime() {
     const s = this.settings;
-    const apiKey = this.getSecret('openaiApiKey');
+    // Chat uses its own key (NVIDIA, OpenAI or another compatible provider). It falls back to the
+    // OpenAI key so existing setups keep working. Voice and the wake word always use the OpenAI key.
+    const llmKey = this.getSecret('llmApiKey') || this.getSecret('openaiApiKey');
+    const voiceKey = this.getSecret('openaiApiKey');
     return {
       assistantName: s.assistantName,
       userName: s.userName,
-      llm: { baseUrl: s.llm.baseUrl, model: s.llm.model, apiKey },
-      voice: { ...s.voice, apiKey },
+      llm: { baseUrl: s.llm.baseUrl, model: s.llm.model, apiKey: llmKey },
+      voice: { ...s.voice, apiKey: voiceKey },
       twilio: {
         accountSid: this.getSecret('twilioAccountSid'),
         authToken: this.getSecret('twilioAuthToken'),

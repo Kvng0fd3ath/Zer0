@@ -30,7 +30,9 @@ async function chatCompletion({
     body.tool_choice = 'auto';
   }
 
-  const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  // Accept either the base (".../v1") or the full endpoint (".../v1/chat/completions").
+  const root = baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+  const url = `${root}/chat/completions`;
   let res;
   try {
     res = await fetchImpl(url, {
