@@ -35,7 +35,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/desktop-v')
         shell: bash
         run: |
-          ver=$(node -p "require('./desktop/package.json').version")
+          ver=$(node -p "require('./package.json').version")
           if git ls-remote --exit-code --tags origin "refs/tags/v$ver" >/dev/null 2>&1; then
             echo "Tag v$ver already exists"
             exit 0
