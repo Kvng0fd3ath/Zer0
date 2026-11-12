@@ -5,7 +5,8 @@
   const api = window.zer0;
 
   const el = {
-    orb: $('orb'),
+    app: $('app'),
+    ballLine: $('ball-line'),
     status: $('status'),
     statusDot: $('status-dot'),
     brandName: $('brand-name'),
@@ -28,6 +29,8 @@
     state: null,
     toastTimer: null,
     resumeAt: 0, // wake listening stays paused until this time (lets the speaker's echo die down)
+    lastLine: '', // newest chat line, shown in ball mode
+    pendingActions: 0, // confirmations waiting; ball mode points the user to the full window
     awaitingUntil: 0, // after a bare "Hey Zero", the next utterance is taken as the command
   };
 
@@ -40,20 +43,22 @@
   // ---------- helpers ----------
 
   function setOrb(state) {
-    el.orb.dataset.state = state;
+    el.app.dataset.state = state;
   }
 
   function setStatus(text, { offline = false } = {}) {
     el.status.textContent = text;
     el.statusDot.classList.toggle('offline', offline);
+    updateBallLine();
   }
 
   function toast(text, { bad = false, ms = 4500 } = {}) {
     el.toast.textContent = text;
     el.toast.classList.toggle('bad', bad);
     el.toast.hidden = false;
+    updateBallLine();
     clearTimeout(ui.toastTimer);
-    ui.toastTimer = setTimeout(() => { el.toast.hidden = true; }, ms);
+    ui.toastTimer = setTimeout(() => { el.toast.hidden = true; updateBallLine(); }, ms);
   }
 
   function addMessage(role, text, cls = '') {
@@ -62,7 +67,35 @@
     node.textContent = text; // never innerHTML: model output is untrusted text
     el.log.appendChild(node);
     el.log.scrollTop = el.log.scrollHeight;
+    ui.lastLine = role === 'user' ? `You: ${text}` : text;
+    updateBallLine();
     return node;
+  }
+
+  /** Ball mode shows one line: a toast, a pending confirmation, "Thinking...", or the newest chat line. */
+  function updateBallLine() {
+    let text;
+    if (!el.toast.hidden) text = el.toast.textContent;
+    else if (ui.pendingActions > 0) text = 'Needs your confirmation. Open Zer0 to review.';
+    else if (ui.busy) text = 'Thinking...';
+    else text = ui.lastLine || el.status.textContent;
+    el.ballLine.textContent = text;
+  }
+
+  /** Switches between the full window and the small ball. The main process resizes the window. */
+  function applyModeUi(mode) {
+    el.app.dataset.mode = mode === 'ball' ? 'ball' : 'full';
+    if (el.app.dataset.mode === 'ball') el.settings.hidden = true;
+    updateBallLine();
+  }
+
+  async function setMode(mode) {
+    try {
+      applyModeUi(await api.invoke('window:mode', mode));
+      if (mode === 'full') el.input.focus();
+    } catch (err) {
+      toast(errorText(err), { bad: true });
+    }
   }
 
   function errorText(err) {
@@ -182,6 +215,8 @@
   // ---------- chat ----------
 
   function renderActions(list) {
+    ui.pendingActions = list.length;
+    updateBallLine();
     el.actions.textContent = '';
     for (const action of list) {
       const card = document.createElement('div');
@@ -264,6 +299,7 @@
     stopSpeaking();
     ui.busy = true;
     el.send.disabled = true;
+    updateBallLine();
     addMessage('user', message);
     el.input.value = '';
     setOrb('thinking');
@@ -284,6 +320,7 @@
       ui.busy = false;
       ui.resumeAt = Date.now() + 800;
       el.send.disabled = false;
+      updateBallLine();
       el.input.focus();
     }
   }
@@ -491,6 +528,9 @@
   $('btn-close-settings').addEventListener('click', () => { el.settings.hidden = true; });
   $('btn-min').addEventListener('click', () => api.invoke('window:minimize').catch(() => {}));
   $('btn-hide').addEventListener('click', () => api.invoke('window:hide').catch(() => {}));
+  $('btn-shrink').addEventListener('click', () => setMode('ball'));
+  $('btn-expand').addEventListener('click', () => setMode('full'));
+  $('btn-ball-hide').addEventListener('click', () => api.invoke('window:hide').catch(() => {}));
 
   document.querySelectorAll('[data-save-secret]').forEach((btn) => {
     btn.addEventListener('click', () => saveSecret(btn.dataset.saveSecret, $(btn.dataset.input)));
@@ -540,6 +580,9 @@
         break;
       case 'push-to-talk':
         toggleRecording();
+        break;
+      case 'mode':
+        applyModeUi(event.mode);
         break;
       case 'notice':
         toast(event.message, { bad: event.level === 'warn' || event.level === 'error', ms: 7000 });

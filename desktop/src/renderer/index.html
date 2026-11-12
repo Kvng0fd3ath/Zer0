@@ -11,33 +11,37 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app" id="app">
+    <div class="app" id="app" data-mode="full" data-state="idle">
+      <!-- Full window -->
       <header class="titlebar drag">
         <div class="brand">
-          <span class="pulse-dot" id="status-dot"></span>
+          <span class="status-dot" id="status-dot"></span>
           <span class="brand-name" id="brand-name">Zer0</span>
-          <span class="wake-badge" id="wake-badge" hidden title="Wake word listening is on">Listening</span>
+          <span class="wake-badge" id="wake-badge" hidden title="Wake phrase listening is on">Listening</span>
         </div>
         <div class="win-controls no-drag">
           <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">Settings</button>
+          <button class="icon-btn" id="btn-shrink" title="Shrink to a small ball" aria-label="Shrink to a small ball">Shrink</button>
           <button class="icon-btn" id="btn-min" title="Minimise" aria-label="Minimise">&#8211;</button>
           <button class="icon-btn" id="btn-hide" title="Hide to tray" aria-label="Hide to tray">&#215;</button>
         </div>
       </header>
 
       <section class="core">
-        <div class="orb" id="orb" data-state="idle" aria-hidden="true">
-          <span class="ring r1"></span>
-          <span class="ring r2"></span>
-          <span class="ring r3"></span>
-          <span class="orb-core"></span>
-        </div>
+        <div class="ball" aria-hidden="true"><span>Z</span></div>
         <p class="status" id="status" role="status">Online. Type below, or press the mic.</p>
       </section>
 
       <section class="log" id="log" aria-live="polite"></section>
 
       <section class="actions" id="actions" aria-label="Actions waiting for your confirmation"></section>
+
+      <!-- Small ball mode: the ball opens the full window; the line shows the latest message -->
+      <button type="button" class="ball ball-expand no-drag" id="btn-expand" title="Open Zer0" aria-label="Open Zer0"><span>Z</span></button>
+      <div class="ball-top drag" id="ball-top">
+        <p class="ball-line" id="ball-line"></p>
+        <button type="button" class="icon-btn no-drag" id="btn-ball-hide" title="Hide to tray" aria-label="Hide to tray">&#215;</button>
+      </div>
 
       <form class="composer" id="composer" autocomplete="off">
         <button type="button" class="mic" id="btn-mic" title="Push to talk" aria-label="Push to talk">Mic</button>
