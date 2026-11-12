@@ -22,6 +22,7 @@ const { ActionQueue } = require('../core/actions');
 const { TwilioClient } = require('../core/twilio');
 const { transcribeAudio, synthesizeSpeech, transcribeWithNvidia, synthesizeWithFish } = require('../core/voice');
 const { createUpdater } = require('./updater');
+const { stripEmotionTags } = require('../core/emotion');
 
 const ROOT = path.join(__dirname, '..', '..');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
@@ -44,14 +45,24 @@ let updater;
 let mode = 'full';
 let fullBounds = null; // remembered so returning from the ball restores the window
 
-/** Secrets are encrypted with the OS keychain when available; otherwise stored with a marker. */
+/**
+ * Secrets are encrypted with the OS keychain when available; otherwise stored with a marker.
+ * Electron deprecated the synchronous safeStorage calls, so this codec only uses the async ones.
+ * ConfigStore.loadSecrets() decrypts everything once at startup.
+ */
 const codec = {
-  encrypt(plain) {
-    if (safeStorage.isEncryptionAvailable()) return `enc:${safeStorage.encryptString(plain).toString('base64')}`;
+  async encryptAsync(plain) {
+    if (safeStorage.isEncryptionAvailable()) {
+      const buf = await safeStorage.encryptStringAsync(plain);
+      return `enc:${buf.toString('base64')}`;
+    }
     return `plain:${plain}`;
   },
-  decrypt(stored) {
-    if (stored.startsWith('enc:')) return safeStorage.decryptString(Buffer.from(stored.slice(4), 'base64'));
+  async decryptAsync(stored) {
+    if (stored.startsWith('enc:')) {
+      const { result } = await safeStorage.decryptStringAsync(Buffer.from(stored.slice(4), 'base64'));
+      return result;
+    }
     if (stored.startsWith('plain:')) return stored.slice(6);
     throw new Error('Unknown secret format');
   },
@@ -213,16 +224,16 @@ function registerIpc() {
     return publicState();
   });
 
-  handle('secrets:set', ({ name, value } = {}) => {
+  handle('secrets:set', async ({ name, value } = {}) => {
     if (!SECRET_NAMES.includes(name)) throw new Error('Unknown setting.');
-    store.setSecret(name, typeof value === 'string' ? value : '');
+    await store.setSecretAsync(name, typeof value === 'string' ? value : '');
     return publicState();
   });
 
   handle('chat:send', async (text) => {
     if (typeof text !== 'string') throw new Error('Invalid message.');
-    const { reply, actions } = await companion.respond(text);
-    return { reply, actions };
+    const { reply, spoken, actions } = await companion.respond(text);
+    return { reply, spoken, actions };
   });
 
   handle('chat:transcript', () => companion.transcript());
@@ -264,7 +275,8 @@ function registerIpc() {
     const rt = store.runtime();
     const tts = rt.voice.tts;
     if (!rt.voice.enabled || tts.engine === 'windows') return null;
-    const input = String(text ?? '');
+    // Only Fish reads emotion tags. Other voices get plain text.
+    const input = tts.engine === 'fish' ? String(text ?? '') : stripEmotionTags(text);
     const mp3 = tts.engine === 'fish'
       ? await synthesizeWithFish({ apiKey: tts.apiKey, voiceId: tts.voiceId, text: input })
       : await synthesizeSpeech({
@@ -321,10 +333,11 @@ function buildServices() {
   });
 }
 
-function start() {
+async function start() {
   // Windows groups taskbar buttons, notifications and the installer shortcut by this ID.
   if (process.platform === 'win32') app.setAppUserModelId(app.isPackaged ? 'com.kvng0fd3ath.zer0' : process.execPath);
   buildServices();
+  await store.loadSecrets();
   configureSessionSecurity();
   registerIpc();
   createWindow();
