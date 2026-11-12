@@ -74,5 +74,11 @@
       ],
       "category": "Utility"
     }
+  },
+  "overrides": {
+    "minimatch": "^11.0.8"
+  },
+  "allowScripts": {
+    "electron-winstaller": false
   }
 }
