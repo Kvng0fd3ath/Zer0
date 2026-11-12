@@ -17,6 +17,7 @@ const INVOKE_CHANNELS = [
   'voice:speak',
   'updates:check',
   'updates:install',
+  'window:mode',
   'window:hide',
   'window:minimize',
   'window:quit',

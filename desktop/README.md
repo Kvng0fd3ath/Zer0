@@ -1,6 +1,6 @@
 # Zer0 desktop companion (Windows)
 
-A Jarvis-style AI assistant that lives in a native Windows window and tray icon. Say **"Hey Zero"** to talk to it hands-free, or press the push-to-talk hotkey.
+A personal AI assistant that lives in a native Windows window and tray icon. Say **"Hey Zero"** to talk to it hands-free, or press the push-to-talk hotkey.
 
 ## What it does
 

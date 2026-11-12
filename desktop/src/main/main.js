@@ -12,6 +12,7 @@ const {
   safeStorage,
   session,
   nativeImage,
+  screen,
 } = require('electron');
 
 const { ConfigStore, SECRET_NAMES } = require('../core/config');
@@ -27,6 +28,12 @@ const ICON = path.join(ROOT, 'assets', 'icon.png');
 const PRELOAD = path.join(__dirname, '..', 'preload', 'preload.js');
 const INDEX = path.join(__dirname, '..', 'renderer', 'index.html');
 
+// Full window (the main app) and the small ball (a compact bar that keeps the chat prompt).
+const MODES = {
+  full: { width: 440, height: 740, minWidth: 360, minHeight: 520, resizable: true },
+  ball: { width: 420, height: 96, minWidth: 420, minHeight: 96, resizable: false },
+};
+
 let win = null;
 let tray = null;
 let quitting = false;
@@ -34,6 +41,8 @@ let store;
 let companion;
 let queue;
 let updater;
+let mode = 'full';
+let fullBounds = null; // remembered so returning from the ball restores the window
 
 /** Secrets are encrypted with the OS keychain when available; otherwise stored with a marker. */
 const codec = {
@@ -65,12 +74,43 @@ function toggleWindow() {
   else showWindow();
 }
 
+/** Switches between the full window and the small ball. Returns the mode now in use. */
+function applyMode(next) {
+  if (!win || win.isDestroyed() || !MODES[next] || next === mode) return mode;
+  const cfg = MODES[next];
+
+  if (mode === 'full') fullBounds = win.getBounds();
+  win.setResizable(true);
+  win.setMinimumSize(cfg.minWidth, cfg.minHeight);
+
+  if (next === 'ball') {
+    // Park the ball in the bottom-right corner of the screen it is on, above other windows.
+    const area = screen.getDisplayMatching(win.getBounds()).workArea;
+    win.setBounds({
+      width: cfg.width,
+      height: cfg.height,
+      x: area.x + area.width - cfg.width - 24,
+      y: area.y + area.height - cfg.height - 24,
+    });
+    win.setAlwaysOnTop(true);
+  } else {
+    if (fullBounds) win.setBounds(fullBounds);
+    else {
+      win.setSize(cfg.width, cfg.height);
+      win.center();
+    }
+    win.setAlwaysOnTop(Boolean(store.settings.alwaysOnTop));
+  }
+  win.setResizable(cfg.resizable);
+
+  mode = next;
+  send({ type: 'mode', mode });
+  return mode;
+}
+
 function createWindow() {
   win = new BrowserWindow({
-    width: 440,
-    height: 740,
-    minWidth: 360,
-    minHeight: 520,
+    ...MODES.full,
     title: store.settings.assistantName,
     icon: ICON,
     frame: false,
@@ -114,6 +154,8 @@ function createTray() {
   tray.setToolTip(store.settings.assistantName);
   const menu = Menu.buildFromTemplate([
     { label: 'Show Zer0', click: showWindow },
+    { label: 'Show as small ball', click: () => { applyMode('ball'); showWindow(); } },
+    { label: 'Show full window', click: () => { applyMode('full'); showWindow(); } },
     { label: 'Push to talk (hotkey)', click: () => { showWindow(); send({ type: 'push-to-talk' }); } },
     { type: 'separator' },
     { label: 'Check for updates', click: () => updater.check() },
@@ -166,7 +208,7 @@ function registerIpc() {
       if (!res.ok) throw new Error(res.message);
     }
     if (patch.launchAtLogin !== undefined) applyLoginItem(store.settings.launchAtLogin);
-    if (patch.alwaysOnTop !== undefined && win) win.setAlwaysOnTop(Boolean(store.settings.alwaysOnTop));
+    if (patch.alwaysOnTop !== undefined && win && mode === 'full') win.setAlwaysOnTop(Boolean(store.settings.alwaysOnTop));
     if (patch.assistantName !== undefined && win) win.setTitle(store.settings.assistantName);
     return publicState();
   });
@@ -227,6 +269,10 @@ function registerIpc() {
     return true;
   });
 
+  handle('window:mode', (next) => {
+    if (next !== 'full' && next !== 'ball') throw new Error('Unknown window mode.');
+    return applyMode(next);
+  });
   handle('window:hide', () => { win?.hide(); return true; });
   handle('window:minimize', () => { win?.minimize(); return true; });
   handle('window:quit', () => { app.quit(); return true; });
