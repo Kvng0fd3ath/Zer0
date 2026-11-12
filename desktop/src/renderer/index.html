@@ -80,7 +80,9 @@
           </fieldset>
 
           <fieldset>
-            <legend>Voice and wake word (OpenAI key)</legend>
+            <legend>Voice and wake word</legend>
+            <p class="hint" id="voice-engines"></p>
+            <small class="hint">Speech to text uses your NVIDIA chat key when you have one (free). Otherwise it uses the OpenAI key below.</small>
             <label>OpenAI API key
               <span class="secret-row">
                 <input type="password" id="key-openai" autocomplete="off" spellcheck="false" />
@@ -90,7 +92,16 @@
               <small class="hint" id="hint-openai"></small>
             </label>
             <label class="check"><input type="checkbox" name="voice.enabled" /> Speak replies aloud</label>
-            <small class="hint">Without an OpenAI key, replies are read with the Windows voice.</small>
+            <label>Fish Audio API key
+              <span class="secret-row">
+                <input type="password" id="key-fish" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="fishApiKey" data-input="key-fish">Save</button>
+                <button type="button" class="small danger" data-clear-secret="fishApiKey">Clear</button>
+              </span>
+              <small class="hint" id="hint-fish"></small>
+            </label>
+            <label>Fish voice ID (optional) <input name="voice.fishVoiceId" maxlength="80" placeholder="Leave blank for the default voice" /></label>
+            <small class="hint">Without a Fish or OpenAI key, replies are read with the Windows voice.</small>
             <label>Voice
               <select name="voice.ttsVoice">
                 <option>alloy</option><option>ash</option><option>ballad</option><option>coral</option>
@@ -111,7 +122,7 @@
                 <option value="high">High (soft voice, noisy room)</option>
               </select>
             </label>
-            <p class="hint">Only short bursts of speech are sent to OpenAI to check for the phrase. Silence and background noise stay on this PC. Turn it off to stop all listening.</p>
+            <p class="hint">Only short bursts of speech are sent to the speech service (NVIDIA or OpenAI) to check for the phrase. Silence and background noise stay on this PC. Turn it off to stop all listening.</p>
           </fieldset>
 
           <fieldset>
@@ -163,6 +174,7 @@
         </form>
       </aside>
     </div>
+    <script src="wav.js"></script>
     <script src="wake-word.js"></script>
     <script src="endpointer.js"></script>
     <script src="wake-listener.js"></script>

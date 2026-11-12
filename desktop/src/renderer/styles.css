@@ -7,9 +7,9 @@
   --line: #2f343c;
   --text: #e7e9ec;
   --muted: #9ba3ad;
-  --accent: #8ab4f8;
-  --on-accent: #0f1a2e;
-  --accent-soft: rgba(138, 180, 248, 0.14);
+  --accent: #b594f7;
+  --on-accent: #1d0f38;
+  --accent-soft: rgba(181, 148, 247, 0.16);
   --warn: #f2b75c;
   --bad: #f28b82;
   --ok: #81c995;
@@ -25,9 +25,9 @@
     --line: #dadee5;
     --text: #1d2127;
     --muted: #5d6672;
-    --accent: #1a73e8;
+    --accent: #7c3aed;
     --on-accent: #ffffff;
-    --accent-soft: rgba(26, 115, 232, 0.10);
+    --accent-soft: rgba(124, 58, 237, 0.10);
     --warn: #b06000;
     --bad: #c5221f;
     --ok: #137333;
@@ -159,7 +159,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line);
   border-radius: 10px; padding: 10px 12px; outline: none;
 }
-.composer input:focus { border-color: var(--accent); }
+.composer input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .mic, .send, .primary, .small, .danger {
   border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; padding: 9px 12px;
 }

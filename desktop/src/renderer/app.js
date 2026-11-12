@@ -116,9 +116,21 @@
     return ui.state?.settings?.wakeWord?.phrase || 'Hey Zero';
   }
 
+  /** True when a speech-to-text service is configured (NVIDIA chat key or OpenAI key). */
+  function canTranscribe() {
+    const stt = ui.state?.voiceEngines?.stt;
+    return Boolean(stt && stt !== 'none');
+  }
+
+  /** NVIDIA needs 16 kHz mono WAV, so recordings are converted first. Other services take the recording as-is. */
+  async function audioForService(blob) {
+    if (ui.state?.voiceEngines?.stt !== 'nvidia') return blob;
+    return window.Zer0Wav.toWav16kMono(blob);
+  }
+
   async function applyWake() {
     const cfg = ui.state?.settings?.wakeWord;
-    const canListen = Boolean(cfg?.enabled && ui.state?.secretsSet.openaiApiKey);
+    const canListen = Boolean(cfg?.enabled && canTranscribe());
     if (!canListen) {
       wake.stop();
       return;
@@ -132,11 +144,12 @@
   }
 
   async function handleWakeUtterance(blob) {
-    if (ui.busy || !ui.state?.secretsSet.openaiApiKey) return;
+    if (ui.busy || !canTranscribe()) return;
     let text = '';
     try {
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      text = await api.invoke('voice:transcribe', bytes, blob.type, wakePhrase());
+      const prepared = await audioForService(blob);
+      const bytes = new Uint8Array(await prepared.arrayBuffer());
+      text = await api.invoke('voice:transcribe', bytes, prepared.type, wakePhrase());
     } catch (err) {
       // Transient transcription failures should not interrupt the user.
       console.warn('Wake transcription failed:', errorText(err));
@@ -185,7 +198,7 @@
   async function speak(text) {
     if (!ui.state?.settings?.voice?.enabled) return;
     stopSpeaking();
-    if (!ui.state.secretsSet.openaiApiKey) {
+    if (!ui.state.voiceEngines || ui.state.voiceEngines.tts === 'windows') {
       speakWithSystemVoice(text);
       return;
     }
@@ -334,8 +347,8 @@
 
   async function startRecording() {
     if (ui.recording || ui.busy) return;
-    if (!ui.state?.secretsSet.openaiApiKey) {
-      toast('Voice input needs an OpenAI API key. Add it in Settings.', { bad: true, ms: 6000 });
+    if (!canTranscribe()) {
+      toast('Voice input needs an NVIDIA or OpenAI key. Add one in Settings.', { bad: true, ms: 6000 });
       return;
     }
     stopSpeaking();
@@ -360,8 +373,9 @@
       setOrb('thinking');
       setStatus('Transcribing...');
       try {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        const text = await api.invoke('voice:transcribe', bytes, blob.type);
+        const prepared = await audioForService(blob);
+        const bytes = new Uint8Array(await prepared.arrayBuffer());
+        const text = await api.invoke('voice:transcribe', bytes, prepared.type);
         if (!text) { setStatus('I did not catch that.'); setOrb('idle'); return; }
         await sendMessage(text);
       } catch (err) {
@@ -397,6 +411,7 @@
     'llm.baseUrl': (v) => v.trim(),
     'voice.enabled': (_v, el) => el.checked,
     'voice.ttsVoice': (v) => v,
+    'voice.fishVoiceId': (v) => v.trim(),
     'twilio.fromNumber': (v) => v.trim(),
     hotkey: (v) => v.trim(),
     launchAtLogin: (_v, el) => el.checked,
@@ -438,10 +453,29 @@
     $('version-line').textContent = `Version ${state.version}${state.packaged ? '' : ' (development build)'}`;
   }
 
+  /** Says which services voice uses right now. */
+  function renderVoiceEngines(state) {
+    const engines = state.voiceEngines || {};
+    const stt = {
+      nvidia: 'NVIDIA (free, uses your chat key)',
+      openai: 'OpenAI',
+      none: 'none (add an NVIDIA or OpenAI key)',
+    }[engines.stt] || 'none';
+    const tts = {
+      fish: 'Fish Audio',
+      openai: 'OpenAI',
+      windows: 'Windows voice',
+    }[engines.tts] || 'Windows voice';
+    $('voice-engines').textContent = `Speech to text: ${stt}. Replies read with: ${tts}.`;
+  }
+
   /** Updates the key hints only. Saving a key must not overwrite unsaved edits elsewhere in the form. */
   function refreshSecretHints(state) {
     const set = state.secretsSet;
     $('hint-openai').textContent = set.openaiApiKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.';
+    $('hint-fish').textContent = set.fishApiKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet. Optional: gives a natural voice for replies.';
+    $('key-fish').placeholder = set.fishApiKey ? '•••• saved ••••' : 'Fish Audio API key';
+    renderVoiceEngines(state);
     $('hint-llm').textContent = set.llmApiKey
       ? 'A chat key is saved.'
       : set.openaiApiKey
@@ -606,10 +640,10 @@
       await applyWake();
       const welcome = ui.state.settings.userName ? `Good to see you, ${ui.state.settings.userName}.` : 'Online.';
       if (!transcript.length) setStatus(`${welcome} Type below, or press the mic.`);
-      if (!ui.state.secretsSet.openaiApiKey) {
-        setStatus('Add your OpenAI API key in Settings to start.', { offline: true });
+      if (!ui.state.secretsSet.llmApiKey && !ui.state.secretsSet.openaiApiKey) {
+        setStatus('Add a chat API key in Settings to start.', { offline: true });
       }
-      if (ui.state.settings.wakeWord.enabled && ui.state.secretsSet.openaiApiKey) {
+      if (ui.state.settings.wakeWord.enabled && canTranscribe()) {
         setStatus(`Listening for "${wakePhrase()}".`);
       }
     } catch (err) {
