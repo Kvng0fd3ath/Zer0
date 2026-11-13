@@ -46,10 +46,26 @@ jobs:
           git push origin "v$ver"
       - run: npm ci
       - run: npm test
-      - name: Build and publish Windows installer
+      - name: Build Windows installer
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Optional code signing. Without these the installer is unsigned and Windows SmartScreen will warn.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder --win --publish never
+      - name: Publish the release files installed copies update from
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=$(node -p "require('./package.json').version")
+          exe="release/Zer0-Setup-${ver}-x64.exe"
+          for f in "$exe" release/latest.yml; do
+            if [ ! -f "$f" ]; then echo "Missing build output: $f"; ls -la release; exit 1; fi
+          done
+          # The blockmap only makes updates smaller, so it is optional.
+          files=("$exe" release/latest.yml)
+          if [ -f "$exe.blockmap" ]; then files+=("$exe.blockmap"); fi
+          # Replace any earlier, incomplete release for this version, then publish the files.
+          gh release delete "v$ver" --yes >/dev/null 2>&1 || true
+          gh release create "v$ver" "${files[@]}" --title "Zer0 $ver" --notes "Zer0 desktop $ver" --latest
