@@ -48,6 +48,13 @@ const SECRET_ENV_FALLBACK = Object.freeze({
   fishApiKey: 'FISH_API_KEY',
   twilioAccountSid: 'TWILIO_ACCOUNT_SID',
   twilioAuthToken: 'TWILIO_AUTH_TOKEN',
+  // Email (read-only). Client IDs and secrets come from your own Google and Microsoft apps.
+  gmailClientId: 'GMAIL_CLIENT_ID',
+  gmailClientSecret: 'GMAIL_CLIENT_SECRET',
+  outlookClientId: 'OUTLOOK_CLIENT_ID',
+  // Refresh tokens are only written by the sign-in flow.
+  gmailRefreshToken: null,
+  outlookRefreshToken: null,
 });
 
 const SECRET_NAMES = Object.freeze(Object.keys(SECRET_ENV_FALLBACK));

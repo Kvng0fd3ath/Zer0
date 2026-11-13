@@ -21,6 +21,9 @@ const INVOKE_CHANNELS = [
   'window:hide',
   'window:minimize',
   'window:quit',
+  'email:connect',
+  'email:disconnect',
+  'email:list',
 ];
 
 /** Call a main-process handler. Resolves with data or throws an Error with the user-facing message. */

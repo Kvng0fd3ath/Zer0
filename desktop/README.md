@@ -6,6 +6,7 @@ A personal AI assistant that lives in a native Windows window and tray icon. Say
 
 - **Wake word.** Say "Hey Zero" followed by your request, or say "Hey Zero" and pause for a chime, then ask. Turn it on in Settings.
 - **Chat and voice.** Type, or press `Ctrl+Shift+Space` and speak. Replies are read aloud.
+- **Email (read-only).** Connect Gmail and/or Outlook in Settings, then press **Check inbox** to see your 20 newest messages. Mail is shown only in the Zer0 window. It is not sent to any AI service and is not saved to disk. Setup steps are in the Settings section.
 - **Texts and calls.** Ask it to text or call a saved contact. Calls go through Twilio, and a spoken message is read on the call. Every text or call shows a confirmation card, and nothing is sent until you press Confirm.
 - **Quick tools.** Tells the time, opens web pages, and looks up contacts.
 - **Automatic updates.** Installed copies check GitHub Releases on launch and every four hours, download new versions in the background, and offer a one-click restart.
@@ -81,6 +82,6 @@ Notes:
 
 - Calls and texts always need an explicit confirmation in the UI. Pending confirmations expire after 10 minutes.
 - Each confirmation card shows the exact recipient number and full message or call script. Contact names are resolved from your saved list only.
-- The page cannot reach the network directly (`connect-src 'none'`). Only the main process calls the NVIDIA, OpenAI, Fish Audio and Twilio APIs.
+- The page cannot reach the network directly (`connect-src 'none'`). Only the main process calls the NVIDIA, OpenAI, Fish Audio, Twilio, Google (Gmail) and Microsoft (Outlook) APIs. Email text never goes to the chat or voice services.
 - Only the microphone permission is granted, and only to this window.
 - Conversation history is kept in memory and cleared when the app quits.

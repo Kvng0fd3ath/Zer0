@@ -224,3 +224,8 @@ textarea { resize: vertical; }
   color: var(--ok); border: 1px solid var(--ok); background: transparent;
 }
 .wake-badge[hidden] { display: none; }
+
+/* Email inbox list (Settings). Text only, no HTML from mail. */
+.inbox { list-style: none; padding: 0; margin: 8px 0 0; max-height: 300px; overflow: auto; }
+.inbox li { border-bottom: 1px solid var(--line); padding: 8px 0; display: grid; gap: 2px; }
+.inbox-error { color: var(--bad); }
