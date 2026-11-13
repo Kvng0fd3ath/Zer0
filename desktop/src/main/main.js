@@ -23,6 +23,7 @@ const { TwilioClient } = require('../core/twilio');
 const { transcribeAudio, synthesizeSpeech, transcribeWithNvidia, synthesizeWithFish } = require('../core/voice');
 const { createUpdater } = require('./updater');
 const { stripEmotionTags } = require('../core/emotion');
+const email = require('../core/email');
 
 const ROOT = path.join(__dirname, '..', '..');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
@@ -287,6 +288,67 @@ function registerIpc() {
         text: input,
       });
     return new Uint8Array(mp3);
+  });
+
+  // ---------- email (read-only, stays on this PC) ----------
+
+  handle('email:connect', async (name) => {
+    if (!email.PROVIDERS[name]) throw new Error('Unknown mail provider.');
+    const clientId = store.getSecret(`${name}ClientId`);
+    if (!clientId) throw new Error(`Paste your ${email.PROVIDERS[name].label} Client ID in Settings first.`);
+    const clientSecret = name === 'gmail' ? store.getSecret('gmailClientSecret') : '';
+    const pkce = email.makePkce();
+    const server = await email.startCallbackServer(name);
+    try {
+      await shell.openExternal(email.authUrl(name, {
+        clientId,
+        redirectUri: server.redirectUri,
+        challenge: pkce.challenge,
+        state: pkce.state,
+      }));
+      const { code, state } = await server.result;
+      if (state !== pkce.state) throw new Error('Sign-in did not match this request. Try again.');
+      const tokens = await email.exchangeCode(name, {
+        clientId,
+        clientSecret,
+        code,
+        verifier: pkce.verifier,
+        redirectUri: server.redirectUri,
+      });
+      await store.setSecretAsync(`${name}RefreshToken`, tokens.refreshToken);
+    } finally {
+      server.close();
+    }
+    return publicState();
+  });
+
+  handle('email:disconnect', async (name) => {
+    if (!email.PROVIDERS[name]) throw new Error('Unknown mail provider.');
+    await store.setSecretAsync(`${name}RefreshToken`, '');
+    return publicState();
+  });
+
+  // Mail is fetched on demand and returned to the window only. It is not stored or logged.
+  handle('email:list', async () => {
+    const messages = [];
+    const errors = [];
+    for (const name of Object.keys(email.PROVIDERS)) {
+      const refreshToken = store.getSecret(`${name}RefreshToken`);
+      if (!refreshToken) continue;
+      try {
+        const tokens = await email.refreshAccess(name, {
+          clientId: store.getSecret(`${name}ClientId`),
+          clientSecret: name === 'gmail' ? store.getSecret('gmailClientSecret') : '',
+          refreshToken,
+        });
+        if (tokens.refreshToken !== refreshToken) await store.setSecretAsync(`${name}RefreshToken`, tokens.refreshToken);
+        messages.push(...await email.fetchInbox(name, { accessToken: tokens.accessToken }));
+      } catch (err) {
+        errors.push({ account: name, message: err.message });
+      }
+    }
+    messages.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return { messages, errors };
   });
 
   handle('updates:check', () => updater.check().then(() => updater.getState()));

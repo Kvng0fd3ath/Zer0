@@ -490,6 +490,10 @@
     $('key-openai').placeholder = set.openaiApiKey ? '•••• saved ••••' : 'sk-...';
     $('key-sid').placeholder = set.twilioAccountSid ? '•••• saved ••••' : 'AC...';
     $('key-token').placeholder = set.twilioAuthToken ? '•••• saved ••••' : 'Auth token';
+    $('key-gmail-id').placeholder = set.gmailClientId ? '•••• saved ••••' : 'Client ID from Google Cloud';
+    $('key-gmail-secret').placeholder = set.gmailClientSecret ? '•••• saved ••••' : 'Client secret from Google Cloud';
+    $('key-outlook-id').placeholder = set.outlookClientId ? '•••• saved ••••' : 'Application (client) ID from Azure';
+    renderEmailStatus(state);
   }
 
   function collectSettingsPatch() {
@@ -551,6 +555,76 @@
     }
   }
 
+  // ---------- email ----------
+
+  const EMAIL_LABELS = { gmail: 'Gmail', outlook: 'Outlook' };
+
+  function renderEmailStatus(state) {
+    const set = state.secretsSet || {};
+    $('email-status').textContent = `Gmail: ${set.gmailRefreshToken ? 'connected' : 'not connected'}. `
+      + `Outlook: ${set.outlookRefreshToken ? 'connected' : 'not connected'}.`;
+  }
+
+  async function emailConnect(name) {
+    $('email-status').textContent = 'Finish signing in in your browser. Zer0 is waiting...';
+    try {
+      ui.state = await api.invoke('email:connect', name);
+      renderEmailStatus(ui.state);
+      toast(`${EMAIL_LABELS[name]} connected.`);
+    } catch (err) {
+      renderEmailStatus(ui.state);
+      toast(errorText(err), { bad: true, ms: 6000 });
+    }
+  }
+
+  async function emailDisconnect(name) {
+    try {
+      ui.state = await api.invoke('email:disconnect', name);
+      renderEmailStatus(ui.state);
+      toast(`${EMAIL_LABELS[name]} disconnected.`);
+    } catch (err) {
+      toast(errorText(err), { bad: true, ms: 6000 });
+    }
+  }
+
+  async function checkInbox() {
+    const list = $('inbox-list');
+    list.replaceChildren();
+    $('email-status').textContent = 'Checking your inbox...';
+    try {
+      const { messages, errors } = await api.invoke('email:list');
+      if (!messages.length && !errors.length) {
+        $('email-status').textContent = 'No messages found, or no account is connected.';
+      } else {
+        const n = messages.length;
+        $('email-status').textContent = `Showing ${n} newest message${n === 1 ? '' : 's'}. Shown only on this PC.`;
+      }
+      for (const err of errors) {
+        const li = document.createElement('li');
+        li.className = 'inbox-error';
+        li.textContent = `${EMAIL_LABELS[err.account] || err.account}: ${err.message}`;
+        list.append(li);
+      }
+      for (const m of messages) {
+        const li = document.createElement('li');
+        const who = document.createElement('strong');
+        who.textContent = `${m.from} (${EMAIL_LABELS[m.account] || m.account})`;
+        const subject = document.createElement('div');
+        subject.textContent = m.subject;
+        const when = document.createElement('small');
+        when.className = 'hint';
+        when.textContent = m.date ? new Date(m.date).toLocaleString() : '';
+        const preview = document.createElement('small');
+        preview.className = 'hint';
+        preview.textContent = m.preview;
+        li.append(who, subject, when, preview);
+        list.append(li);
+      }
+    } catch (err) {
+      $('email-status').textContent = errorText(err);
+    }
+  }
+
   // ---------- wiring ----------
 
   el.composer.addEventListener('submit', (e) => {
@@ -575,6 +649,14 @@
   document.querySelectorAll('[data-clear-secret]').forEach((btn) => {
     btn.addEventListener('click', () => clearSecret(btn.dataset.clearSecret));
   });
+
+  document.querySelectorAll('[data-email-connect]').forEach((btn) => {
+    btn.addEventListener('click', () => emailConnect(btn.dataset.emailConnect));
+  });
+  document.querySelectorAll('[data-email-disconnect]').forEach((btn) => {
+    btn.addEventListener('click', () => emailDisconnect(btn.dataset.emailDisconnect));
+  });
+  $('inbox-check').addEventListener('click', checkInbox);
 
   el.form.addEventListener('submit', async (e) => {
     e.preventDefault();

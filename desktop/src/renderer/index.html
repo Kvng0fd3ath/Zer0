@@ -144,6 +144,45 @@
           </fieldset>
 
           <fieldset>
+            <legend>Email (read-only, stays on this PC)</legend>
+            <p class="hint">Zer0 reads your 20 newest inbox messages when you check. Mail is not sent to any AI service and is not saved to disk.</p>
+            <label>Gmail Client ID
+              <span class="secret-row">
+                <input type="password" id="key-gmail-id" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="gmailClientId" data-input="key-gmail-id">Save</button>
+                <button type="button" class="small danger" data-clear-secret="gmailClientId">Clear</button>
+              </span>
+            </label>
+            <label>Gmail Client secret
+              <span class="secret-row">
+                <input type="password" id="key-gmail-secret" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="gmailClientSecret" data-input="key-gmail-secret">Save</button>
+                <button type="button" class="small danger" data-clear-secret="gmailClientSecret">Clear</button>
+              </span>
+            </label>
+            <label>Outlook Client ID
+              <span class="secret-row">
+                <input type="password" id="key-outlook-id" autocomplete="off" spellcheck="false" />
+                <button type="button" class="small" data-save-secret="outlookClientId" data-input="key-outlook-id">Save</button>
+                <button type="button" class="small danger" data-clear-secret="outlookClientId">Clear</button>
+              </span>
+            </label>
+            <p class="hint" id="email-status"></p>
+            <div>
+              <button type="button" class="small" data-email-connect="gmail">Connect Gmail</button>
+              <button type="button" class="small danger" data-email-disconnect="gmail">Disconnect Gmail</button>
+            </div>
+            <div>
+              <button type="button" class="small" data-email-connect="outlook">Connect Outlook</button>
+              <button type="button" class="small danger" data-email-disconnect="outlook">Disconnect Outlook</button>
+            </div>
+            <div>
+              <button type="button" class="small" id="inbox-check">Check inbox</button>
+            </div>
+            <ul id="inbox-list" class="inbox"></ul>
+          </fieldset>
+
+          <fieldset>
             <legend>Contacts</legend>
             <label>One per line: name, phone
               <textarea name="contacts" rows="4" placeholder="Mom, +15551234567"></textarea>
