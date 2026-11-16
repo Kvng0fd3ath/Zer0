@@ -63,6 +63,13 @@ class Companion {
     this.history = [];
   }
 
+  /** Load saved chat (user and assistant text) from an earlier session. */
+  restore(entries) {
+    this.history = (Array.isArray(entries) ? entries : [])
+      .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content)
+      .map(({ role, content }) => ({ role, content }));
+  }
+
   #recentWindow() {
     let start = Math.max(0, this.history.length - HISTORY_LIMIT);
     // Never start the window on a tool result or an assistant tool call, which would orphan it.

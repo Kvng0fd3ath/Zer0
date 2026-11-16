@@ -8,7 +8,89 @@ const { normalizePhone, MAX_SMS_LENGTH, MAX_CALL_MESSAGE_LENGTH } = require('./t
  *  - 'confirm':   `prepare(args, deps)` validates and returns `{ summary, execute }`. Nothing
  *                 external happens until the user confirms the queued action in the UI.
  */
-function createToolRegistry({ getContacts, getTwilio, openExternal, clock = () => new Date() }) {
+/** Tools for reminders and notes, backed by an ItemStore. */
+function itemTools(items, clock) {
+  const summarise = (x) => ({ id: x.id, text: x.text, dueAt: x.dueAt, createdAt: x.createdAt });
+  return [
+    {
+      name: 'set_reminder',
+      kind: 'immediate',
+      description: 'Set a reminder that shows a Windows notification at a time. Give either minutes from now, or an ISO 8601 time with timezone.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'What to remind the user about.' },
+          minutes: { type: 'number', description: 'Minutes from now (1 to 10080).' },
+          at: { type: 'string', description: 'ISO 8601 date and time, for example 2026-11-13T09:00:00-08:00.' },
+        },
+        required: ['text'],
+        additionalProperties: false,
+      },
+      async run({ text, minutes, at }) {
+        let dueAt = null;
+        if (at !== undefined && at !== null && at !== '') {
+          dueAt = at;
+        } else if (minutes !== undefined && minutes !== null) {
+          const m = Number(minutes);
+          if (!Number.isFinite(m) || m < 1 || m > 10080) throw new Error('Minutes must be between 1 and 10080.');
+          dueAt = new Date(clock().getTime() + m * 60_000).toISOString();
+        } else {
+          throw new Error('Give minutes or a time for the reminder.');
+        }
+        return { status: 'set', reminder: summarise(items.add({ kind: 'reminder', text, dueAt })) };
+      },
+    },
+    {
+      name: 'list_reminders',
+      kind: 'immediate',
+      description: 'List the reminders that have not fired yet.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        return { reminders: items.open('reminder').map(summarise) };
+      },
+    },
+    {
+      name: 'add_note',
+      kind: 'immediate',
+      description: 'Save a note or a to-do item for the user.',
+      parameters: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'The note or to-do text.' } },
+        required: ['text'],
+        additionalProperties: false,
+      },
+      async run({ text }) {
+        return { status: 'saved', note: summarise(items.add({ kind: 'note', text })) };
+      },
+    },
+    {
+      name: 'list_notes',
+      kind: 'immediate',
+      description: 'List the open notes and to-do items.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      async run() {
+        return { notes: items.open('note').map(summarise) };
+      },
+    },
+    {
+      name: 'complete_item',
+      kind: 'immediate',
+      description: 'Mark a note or to-do item as done, using its id from list_notes.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'The id of the note.' } },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      async run({ id }) {
+        const item = items.complete(String(id ?? ''));
+        return { status: 'done', id: item.id };
+      },
+    },
+  ];
+}
+
+function createToolRegistry({ getContacts, getTwilio, openExternal, items = null, clock = () => new Date() }) {
   /** Resolve a name or phone number to `{ phone, name }`. Throws a model-readable error when unresolvable. */
   function resolveRecipient(to) {
     const raw = String(to ?? '').trim();
@@ -140,6 +222,9 @@ function createToolRegistry({ getContacts, getTwilio, openExternal, clock = () =
         };
       },
     },
+
+    // Reminders and notes live on this PC. Only the items the model reads or writes go through it.
+    ...(items ? itemTools(items, clock) : []),
   ];
 
   const byName = new Map(tools.map((t) => [t.name, t]));

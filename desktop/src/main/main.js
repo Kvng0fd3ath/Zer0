@@ -13,6 +13,7 @@ const {
   session,
   nativeImage,
   screen,
+  Notification,
 } = require('electron');
 
 const { ConfigStore, SECRET_NAMES } = require('../core/config');
@@ -24,6 +25,8 @@ const { transcribeAudio, synthesizeSpeech, transcribeWithNvidia, synthesizeWithF
 const { createUpdater } = require('./updater');
 const { stripEmotionTags } = require('../core/emotion');
 const email = require('../core/email');
+const { ItemStore } = require('../core/items');
+const { ChatHistory } = require('../core/chat_history');
 
 const ROOT = path.join(__dirname, '..', '..');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
@@ -43,6 +46,9 @@ let store;
 let companion;
 let queue;
 let updater;
+let items; // reminders and notes
+let history; // saved chat between sessions
+let reminderTimer;
 let mode = 'full';
 let fullBounds = null; // remembered so returning from the ball restores the window
 
@@ -160,21 +166,47 @@ function createWindow() {
   });
 }
 
-function createTray() {
-  const icon = nativeImage.createFromPath(ICON);
-  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 32, height: 32 }));
-  tray.setToolTip(store.settings.assistantName);
-  const menu = Menu.buildFromTemplate([
+function setTraySetting(section, key, on) {
+  store.updateSettings({ [section]: { ...store.settings[section], [key]: on } });
+  refreshTray();
+  send({ type: 'settings-changed' });
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     { label: 'Show Zer0', click: showWindow },
     { label: 'Show as small ball', click: () => { applyMode('ball'); showWindow(); } },
     { label: 'Show full window', click: () => { applyMode('full'); showWindow(); } },
     { label: 'Push to talk (hotkey)', click: () => { showWindow(); send({ type: 'push-to-talk' }); } },
     { type: 'separator' },
+    {
+      label: 'Speak replies aloud',
+      type: 'checkbox',
+      checked: Boolean(store.settings.voice.enabled),
+      click: (item) => setTraySetting('voice', 'enabled', item.checked),
+    },
+    {
+      label: 'Listen for "Hey Zero"',
+      type: 'checkbox',
+      checked: Boolean(store.settings.wakeWord.enabled),
+      click: (item) => setTraySetting('wakeWord', 'enabled', item.checked),
+    },
+    { type: 'separator' },
     { label: 'Check for updates', click: () => updater.check() },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
-  tray.setContextMenu(menu);
+}
+
+function refreshTray() {
+  if (tray && store) tray.setContextMenu(buildTrayMenu());
+}
+
+function createTray() {
+  const icon = nativeImage.createFromPath(ICON);
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 32, height: 32 }));
+  tray.setToolTip(store.settings.assistantName);
+  tray.setContextMenu(buildTrayMenu());
   tray.on('click', toggleWindow);
 }
 
@@ -189,6 +221,23 @@ function registerHotkey(accelerator) {
     return ok ? { ok: true } : { ok: false, message: 'That shortcut is in use by another app.' };
   } catch (err) {
     return { ok: false, message: `Invalid shortcut: ${err.message}` };
+  }
+}
+
+/** Save chat, reminders and notes. Failures are not fatal: these are conveniences. */
+async function saveAll() {
+  await history?.save(companion.transcript()).catch(() => {});
+  await items?.save().catch(() => {});
+}
+
+/** Show a notification for each reminder that is due. Reminders fire once. */
+async function fireDueReminders() {
+  const due = items.takeDue();
+  if (!due.length) return;
+  await items.save().catch(() => {});
+  for (const r of due) {
+    if (Notification.isSupported()) new Notification({ title: 'Zer0 reminder', body: r.text }).show();
+    send({ type: 'notice', level: 'info', message: `Reminder: ${r.text}` });
   }
 }
 
@@ -234,6 +283,7 @@ function registerIpc() {
   handle('chat:send', async (text) => {
     if (typeof text !== 'string') throw new Error('Invalid message.');
     const { reply, spoken, actions } = await companion.respond(text);
+    await saveAll();
     return { reply, spoken, actions };
   });
 
@@ -241,6 +291,7 @@ function registerIpc() {
 
   handle('chat:clear', () => {
     companion.clear();
+    saveAll();
     return true;
   });
 
@@ -376,6 +427,8 @@ function configureSessionSecurity() {
 function buildServices() {
   store = new ConfigStore({ dir: app.getPath('userData'), codec });
   queue = new ActionQueue();
+  items = new ItemStore({ file: path.join(app.getPath('userData'), 'items.json'), codec });
+  history = new ChatHistory({ file: path.join(app.getPath('userData'), 'chat-history.json'), codec });
 
   const getTwilio = () => {
     const t = store.runtime().twilio;
@@ -386,6 +439,7 @@ function buildServices() {
     getContacts: () => store.settings.contacts,
     getTwilio,
     openExternal: (url) => shell.openExternal(url),
+    items,
   });
 
   companion = new Companion({
@@ -400,6 +454,11 @@ async function start() {
   if (process.platform === 'win32') app.setAppUserModelId(app.isPackaged ? 'com.kvng0fd3ath.zer0' : process.execPath);
   buildServices();
   await store.loadSecrets();
+  await items.load().catch(() => {});
+  companion.restore(await history.load().catch(() => []));
+  reminderTimer = setInterval(() => fireDueReminders().catch(() => {}), 15_000);
+  reminderTimer.unref?.();
+  fireDueReminders().catch(() => {});
   configureSessionSecurity();
   registerIpc();
   createWindow();
@@ -429,6 +488,7 @@ if (!gotLock) {
   app.on('before-quit', () => {
     quitting = true;
     updater?.stop();
+    clearInterval(reminderTimer);
   });
 
   app.on('will-quit', () => globalShortcut.unregisterAll());
