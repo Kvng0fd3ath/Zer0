@@ -6,6 +6,9 @@ A personal AI assistant that lives in a native Windows window and tray icon. Say
 
 - **Wake word.** Say "Hey Zero" followed by your request, or say "Hey Zero" and pause for a chime, then ask. Turn it on in Settings.
 - **Chat and voice.** Type, or press `Ctrl+Shift+Space` and speak. Replies are read aloud.
+- **Reminders and notes.** Ask for a reminder ("remind me in 20 minutes to check the oven") or save a note or to-do. They are kept on this PC, encrypted, and reminders show a Windows notification when they are due. Your requests go through the chat model, as chat does.
+- **Saved chat.** Your conversation is kept between sessions, encrypted on this PC. Use **Search this chat** to find something, and **Copy** under any reply.
+- **Tray menu.** Turn spoken replies and "Hey Zero" on or off without opening the window.
 - **Email (read-only).** Connect Gmail and/or Outlook in Settings, then press **Check inbox** to see your 20 newest messages. Mail is shown only in the Zer0 window. It is not sent to any AI service and is not saved to disk. Setup steps are in the Settings section.
 - **Texts and calls.** Ask it to text or call a saved contact. Calls go through Twilio, and a spoken message is read on the call. Every text or call shows a confirmation card, and nothing is sent until you press Confirm.
 - **Quick tools.** Tells the time, opens web pages, and looks up contacts.

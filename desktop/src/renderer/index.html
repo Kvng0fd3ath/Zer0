@@ -32,7 +32,9 @@
         <p class="status" id="status" role="status">Online. Type below, or press the mic.</p>
       </section>
 
-      <section class="log" id="log" aria-live="polite"></section>
+      <section class="log" id="log" aria-live="polite">
+        <input type="search" id="history-search" class="history-search" placeholder="Search this chat" aria-label="Search this chat" />
+      </section>
 
       <section class="actions" id="actions" aria-label="Actions waiting for your confirmation"></section>
 
@@ -45,7 +47,7 @@
 
       <form class="composer" id="composer" autocomplete="off">
         <button type="button" class="mic" id="btn-mic" title="Push to talk" aria-label="Push to talk">Mic</button>
-        <input id="input" type="text" placeholder="Ask me anything..." maxlength="4000" aria-label="Message" />
+        <textarea id="input" rows="1" placeholder="Ask me anything... (Enter sends, Shift+Enter for a new line)" maxlength="4000" aria-label="Message"></textarea>
         <button type="submit" class="send" id="btn-send">Send</button>
       </form>
 

@@ -64,7 +64,26 @@
   function addMessage(role, text, cls = '') {
     const node = document.createElement('div');
     node.className = `msg ${role} ${cls}`.trim();
-    node.textContent = text; // never innerHTML: model output is untrusted text
+    const body = document.createElement('div');
+    body.className = 'msg-body';
+    body.textContent = text; // never innerHTML: model output is untrusted text
+    node.appendChild(body);
+    if (role === 'assistant' && text) {
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'msg-copy small';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          copy.textContent = 'Copied';
+          setTimeout(() => { copy.textContent = 'Copy'; }, 1500);
+        } catch {
+          toast('Could not copy that reply.', { bad: true });
+        }
+      });
+      node.appendChild(copy);
+    }
     el.log.appendChild(node);
     el.log.scrollTop = el.log.scrollHeight;
     ui.lastLine = role === 'user' ? `You: ${text}` : text;
@@ -228,6 +247,21 @@
   }
 
   // ---------- chat ----------
+
+  /** Grow the message box with its text, up to about six lines. */
+  function autoGrowInput() {
+    el.input.style.height = 'auto';
+    el.input.style.height = `${Math.min(el.input.scrollHeight, 130)}px`;
+  }
+
+  /** Hide messages that do not contain the search text. Search runs on this window only. */
+  function filterHistory(query) {
+    const needle = String(query || '').trim().toLowerCase();
+    for (const node of el.log.querySelectorAll('.msg')) {
+      const text = (node.querySelector('.msg-body')?.textContent || '').toLowerCase();
+      node.style.display = needle && !text.includes(needle) ? 'none' : '';
+    }
+  }
 
   function renderActions(list) {
     ui.pendingActions = list.length;
@@ -630,6 +664,7 @@
   el.composer.addEventListener('submit', (e) => {
     e.preventDefault();
     sendMessage(el.input.value);
+    autoGrowInput();
   });
 
   el.mic.addEventListener('click', toggleRecording);
@@ -686,8 +721,19 @@
   $('btn-install-update').addEventListener('click', () => api.invoke('updates:install').catch((err) => toast(errorText(err), { bad: true })));
 
   el.input.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') el.input.blur();
+    if (e.key === 'Escape') {
+      el.input.blur();
+      return;
+    }
+    // Enter sends. Shift+Enter starts a new line.
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      el.composer.requestSubmit();
+    }
   });
+  el.input.addEventListener('input', autoGrowInput);
+
+  $('history-search').addEventListener('input', (e) => filterHistory(e.target.value));
 
   // Main-process events: updates, push-to-talk hotkey, notices.
   api.onEvent((event) => {
@@ -704,6 +750,10 @@
         break;
       case 'notice':
         toast(event.message, { bad: event.level === 'warn' || event.level === 'error', ms: 7000 });
+        break;
+      case 'settings-changed':
+        // Changed from the tray menu. Refresh the state the window uses.
+        api.invoke('state:get').then((s) => { ui.state = s; }).catch(() => {});
         break;
       default:
         break;
